@@ -1,0 +1,42 @@
+# General
+.DS_Store
+*.log
+.env
+.venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Docker
+.docker_data/
+postgres_data/
+mongodb_data/
+redis_data/
+
+# Backend
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+backend/.env
+
+# Frontend
+frontend/.next/
+frontend/node_modules/
+frontend/.pnp
+.pnp.js
+frontend/coverage/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Exclusions
+.agent/
+TESTING_GEMINI.md
+design-system/
