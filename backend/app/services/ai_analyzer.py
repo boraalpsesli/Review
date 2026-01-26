@@ -1,6 +1,3 @@
-"""
-Google Gemini AI Service for review analysis
-"""
 import google.generativeai as genai
 from typing import List, Dict
 import json
@@ -11,30 +8,15 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiAnalyzer:
-    """Google Gemini AI analyzer for restaurant reviews"""
     
     def __init__(self):
-        """Initialize Google Gemini with API key"""
         if not settings.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY not set in environment variables")
         
-        # Configure Gemini
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        
-        # Initialize the model - using gemini-2.5-flash (latest stable model)
         self.model = genai.GenerativeModel('gemini-2.5-flash')
     
     async def analyze_reviews(self, reviews: List[Dict], restaurant_name: str = "Restaurant") -> Dict:
-        """
-        Analyze restaurant reviews using Google Gemini AI
-        
-        Args:
-            reviews: List of review dictionaries with 'text' and 'rating' fields
-            restaurant_name: Name of the restaurant
-            
-        Returns:
-            Dictionary with sentiment_score, summary, complaints, and praises
-        """
         if not reviews:
             return {
                 "sentiment_score": 0.0,
@@ -44,15 +26,10 @@ class GeminiAnalyzer:
                 "reviews_analyzed": 0
             }
         
-        # Prepare review text for analysis
         reviews_text = self._prepare_reviews_text(reviews)
-        
-        # Create analysis prompt
         prompt = self._create_analysis_prompt(reviews_text, restaurant_name, len(reviews))
         
         try:
-            # Define the JSON schema for structured output
-            # This forces Gemini to return complete, valid JSON
             schema = {
                 "type": "object",
                 "properties": {
@@ -70,18 +47,16 @@ class GeminiAnalyzer:
                 "required": ["sentiment_score", "summary", "complaints", "praises"]
             }
             
-            # Use async generation with JSON schema
             response = await self.model.generate_content_async(
                 prompt,
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.7,
-                    max_output_tokens=8192,  # Increased to prevent truncation
+                    max_output_tokens=8192,
                     response_mime_type="application/json",
-                    response_schema=schema,  # Add schema for complete JSON
+                    response_schema=schema,
                 )
             )
             
-            # Parse the response
             ai_response = response.text
             result = self._parse_ai_response(ai_response, len(reviews))
             
@@ -90,14 +65,12 @@ class GeminiAnalyzer:
             
         except Exception as e:
             logger.error(f"Error during AI analysis: {str(e)}")
-            # Return fallback analysis based on ratings
             return self._fallback_analysis(reviews)
     
     def _prepare_reviews_text(self, reviews: List[Dict]) -> str:
-        """Prepare reviews text for AI analysis"""
         reviews_formatted = []
         
-        for i, review in enumerate(reviews[:50], 1):  # Limit to 50 reviews for token limits
+        for i, review in enumerate(reviews[:50], 1):
             rating = review.get('rating', 'N/A')
             text = review.get('text', '').strip()
             
@@ -107,7 +80,6 @@ class GeminiAnalyzer:
         return "\n".join(reviews_formatted)
     
     def _create_analysis_prompt(self, reviews_text: str, restaurant_name: str, total_reviews: int) -> str:
-        """Create the analysis prompt for Gemini"""
         prompt = f"""Analyze these {total_reviews} customer reviews for "{restaurant_name}".
 
 Reviews:
@@ -117,28 +89,24 @@ Provide analysis in this exact JSON format:
 {{
     "sentiment_score": <float between -1.0 and 1.0, where -1 is very negative, 0 is neutral, 1 is very positive>,
     "summary": "<A concise 2-3 sentence summary of overall customer sentiment and key themes>",
-    "complaints": [<list of 3-5 most common complaints>],
+    "complaints": [<list of 3-5 issues, criticisms, or areas for improvement mentioned in reviews>],
     "praises": [<list of 3-5 most common positive aspects>]
 }}
 
 Rules:
 - Base sentiment_score on overall tone
 - Be specific (e.g., "slow service during peak hours" not just "slow service")
-- Only include issues/praises mentioned in multiple reviews
+- IMPORTANT: Always identify at least 2-3 complaints/areas for improvement, even from mostly positive reviews. Look for subtle criticisms, suggestions, or "could be better" comments.
+- If reviews mention negative experiences, ALWAYS include them in complaints
 - Each complaint/praise: 5-10 words max
 - Return ONLY valid JSON, no markdown or extra text"""
         
         return prompt
     
     def _parse_ai_response(self, response_text: str, reviews_count: int) -> Dict:
-        """Parse AI response and extract structured data"""
         try:
             response_text = response_text.strip()
             
-            # Log raw response for debugging
-            logger.debug(f"Raw AI response (first 500 chars): {response_text[:500]}")
-            
-            # Remove markdown code blocks if present
             if response_text.startswith("```json"):
                 response_text = response_text[7:]
             if response_text.startswith("```"):
@@ -148,16 +116,13 @@ Rules:
             
             response_text = response_text.strip()
             
-            # Try to extract JSON object if there's extra text
             import re
             json_match = re.search(r'\{[\s\S]*\}', response_text)
             if json_match:
                 response_text = json_match.group(0)
             
-            # Parse JSON
             result = json.loads(response_text)
             
-            # Validate and normalize
             sentiment_score = float(result.get('sentiment_score', 0.0))
             sentiment_score = max(-1.0, min(1.0, sentiment_score))
             
@@ -171,14 +136,12 @@ Rules:
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse AI response as JSON: {str(e)}")
-            logger.error(f"Response text (first 1000 chars): {response_text[:1000]}")
             raise
         except Exception as e:
             logger.error(f"Error parsing AI response: {str(e)}")
             raise
     
     def _fallback_analysis(self, reviews: List[Dict]) -> Dict:
-        """Fallback analysis based on ratings when AI fails"""
         ratings = [r.get('rating', 0) for r in reviews if r.get('rating')]
         
         if not ratings:
@@ -186,7 +149,6 @@ Rules:
         else:
             avg_rating = sum(ratings) / len(ratings)
         
-        # Convert 1-5 rating to -1 to 1 sentiment
         sentiment_score = (avg_rating - 3) / 2
         
         return {

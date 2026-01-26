@@ -1,8 +1,7 @@
-"""
-Google Maps Scraper - Gosom based
-Uses the gosom/google-maps-scraper service via REST API
-"""
 import asyncio
+import csv
+import io
+import json as json_lib
 import logging
 import os
 import time
@@ -17,7 +16,6 @@ GOSOM_URL = os.getenv("GOSOM_URL", "http://gosom-scraper:8080")
 
 
 class GoogleMapsScraper:
-    """HTTP Client for Gosom Google Maps Scraper Service"""
 
     def __init__(self, headless: bool = True):
         self.base_url = GOSOM_URL
@@ -32,17 +30,15 @@ class GoogleMapsScraper:
     async def __aexit__(self, exc_type, exc_value, traceback):
         await self.close()
 
-    def scrape_reviews(self, url: str, max_reviews: int = 100) -> Dict[str, Any]:
-        """Synchronous wrapper for async scrape method"""
-        return asyncio.run(self._scrape_reviews_async(url, max_reviews))
+    def scrape_reviews(self, query: str, max_reviews: int = 100) -> Dict[str, Any]:
+        return asyncio.run(self._scrape_reviews_async(query, max_reviews))
 
-    async def _scrape_reviews_async(self, url: str, max_reviews: int) -> Dict[str, Any]:
-        """Async scraping using Gosom API"""
-        logger.info(f"Submitting scrape job to {self.base_url} for {url}")
+    async def _scrape_reviews_async(self, query: str, max_reviews: int) -> Dict[str, Any]:
+        logger.info(f"Submitting scrape job to {self.base_url} for {query}")
 
         payload = {
             "name": f"scrape_{int(time.time())}",
-            "keywords": [url],
+            "keywords": [query],
             "lang": "en",
             "depth": 10,
             "max_time": 600,
@@ -52,7 +48,6 @@ class GoogleMapsScraper:
         }
 
         try:
-            # Create Job
             response = await self.client.post(f"{self.base_url}/api/v1/jobs", json=payload)
             if response.status_code not in [200, 201]:
                 logger.error(f"Gosom API Error: {response.status_code} - {response.text}")
@@ -62,10 +57,9 @@ class GoogleMapsScraper:
             job_id = job_data.get("id")
             logger.info(f"Job created: {job_id}")
 
-            # Poll for completion
             results = None
             start_time = time.time()
-            max_wait = 900  # 15 minutes max wait
+            max_wait = 900
 
             while time.time() - start_time < max_wait:
                 status_res = await self.client.get(f"{self.base_url}/api/v1/jobs/{job_id}")
@@ -74,24 +68,17 @@ class GoogleMapsScraper:
                     status = (job_status.get("Status") or job_status.get("status", "")).lower()
 
                     if status in ["completed", "ok", "done", "success"]:
-                        # Download results
                         results_res = await self.client.get(f"{self.base_url}/api/v1/jobs/{job_id}/download")
                         if results_res.status_code == 200:
                             try:
                                 results = results_res.json()
                             except Exception:
-                                # Fallback: Parse CSV
-                                import csv
-                                import io
-                                import json as json_lib
-
                                 logger.info("JSON parse failed, attempting CSV parse...")
                                 csv_text = results_res.text
                                 reader = csv.DictReader(io.StringIO(csv_text))
                                 results = []
                                 for row in reader:
                                     reviews_data = []
-                                    # 1. Standard reviews
                                     review_key = next((k for k in ['user_reviews', 'UserReviews', 'reviews'] if k in row), None)
                                     if review_key and row[review_key]:
                                         try:
@@ -101,7 +88,6 @@ class GoogleMapsScraper:
                                         except Exception:
                                             pass
 
-                                    # 2. Extended reviews
                                     ext_key = next((k for k in ['user_reviews_extended', 'UserReviewsExtended'] if k in row), None)
                                     if ext_key and row[ext_key]:
                                         try:
@@ -129,7 +115,6 @@ class GoogleMapsScraper:
                     'scraped_at': datetime.utcnow().isoformat()
                 }
 
-            # Parse Results
             place_data = results[0] if results else {}
 
             def get_val(data, *keys):
@@ -150,8 +135,7 @@ class GoogleMapsScraper:
             raw_reviews = get_val(place_data, 'reviews', 'Reviews', 'user_reviews') or []
             if isinstance(raw_reviews, str):
                 try:
-                    import json as j
-                    raw_reviews = j.loads(raw_reviews)
+                    raw_reviews = json_lib.loads(raw_reviews)
                 except Exception:
                     raw_reviews = []
 
@@ -165,7 +149,6 @@ class GoogleMapsScraper:
                     'date_text': get_val(r, 'publishedAtDate', 'relativePublishTimeDescription', 'date', 'When') or ''
                 })
 
-            # Filter for last 30 days
             recent_reviews = []
             cutoff = datetime.utcnow() - timedelta(days=32)
 
@@ -193,7 +176,6 @@ class GoogleMapsScraper:
             raise
 
 
-# Compatibility wrapper
-def get_reviews(url: str, max_reviews: int = 100) -> Dict[str, Any]:
+def get_reviews(query: str, max_reviews: int = 100) -> Dict[str, Any]:
     scraper = GoogleMapsScraper()
-    return scraper.scrape_reviews(url, max_reviews)
+    return scraper.scrape_reviews(query, max_reviews)

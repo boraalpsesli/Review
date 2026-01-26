@@ -1,45 +1,25 @@
-"""
-FastAPI endpoints for restaurant analysis
-"""
-from fastapi import APIRouter, HTTPException, Depends
-from app.schemas.analysis import (
-    AnalyzeRequest,
-    AnalyzeResponse,
-    TaskStatusResponse
-)
-from app.worker.tasks import analyze_restaurant_task, test_analyze_with_mock_data
+from fastapi import APIRouter, HTTPException
+from app.schemas.analysis import AnalyzeRequest, AnalyzeResponse, TaskStatusResponse
+from app.worker.tasks import analyze_restaurant_task
 from celery.result import AsyncResult
 import logging
 
+router = APIRouter()
 logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/api/v1", tags=["analysis"])
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze_restaurant(request: AnalyzeRequest):
-    """
-    Queue a restaurant analysis task
-    
-    This endpoint accepts a Google Maps URL and queues a Celery task to:
-    1. Scrape reviews from Google Maps
-    2. Analyze reviews using AI
-    3. Store results in the database
-    
-    Returns a task_id that can be used to check the status.
-    """
     try:
-        logger.info(f"Received analysis request for: {request.google_maps_url}")
+        logger.info(f"Received analysis request for: {request.query} from user: {request.user_id}")
         
-        # Validate URL (basic check)
-        if "google.com/maps" not in request.google_maps_url:
+        if len(request.query.strip()) < 3:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid Google Maps URL. Must contain 'google.com/maps'"
+                detail="Query too short. Please enter a restaurant name and location."
             )
         
-        # Queue the Celery task
-        task = analyze_restaurant_task.delay(request.google_maps_url)
+        task = analyze_restaurant_task.delay(request.query, request.user_id)
         
         return AnalyzeResponse(
             task_id=task.id,
@@ -54,45 +34,8 @@ async def analyze_restaurant(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=f"Error queuing task: {str(e)}")
 
 
-@router.post("/test-analyze", response_model=AnalyzeResponse)
-async def test_analyze():
-    """
-    Test endpoint with mock data
-    
-    This endpoint queues a test analysis task using mock review data
-    to demonstrate the AI analysis functionality without scraping.
-    """
-    try:
-        logger.info("Received test analysis request with mock data")
-        
-        # Queue the test task
-        task = test_analyze_with_mock_data.delay()
-        
-        return AnalyzeResponse(
-            task_id=task.id,
-            status="PENDING",
-            message="Test analysis task queued successfully. Use the task_id to check status."
-        )
-        
-    except Exception as e:
-        logger.error(f"Error queuing test task: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error queuing task: {str(e)}")
-
-
 @router.get("/status/{task_id}", response_model=TaskStatusResponse)
 async def get_task_status(task_id: str):
-    """
-    Get the status of an analysis task
-    
-    Returns the current status and result (if completed) of a task.
-    
-    Possible statuses:
-    - PENDING: Task is waiting to be executed
-    - STARTED: Task has started
-    - SUCCESS: Task completed successfully
-    - FAILURE: Task failed
-    - RETRY: Task is being retried
-    """
     try:
         task_result = AsyncResult(task_id)
         
@@ -101,22 +44,19 @@ async def get_task_status(task_id: str):
             status=task_result.status
         )
         
-        if task_result.successful():
-            response.result = task_result.result
-        elif task_result.failed():
-            response.error = str(task_result.info)
+        if task_result.ready():
+            if task_result.successful():
+                response.result = task_result.result
+            else:
+                response.error = str(task_result.result)
         
         return response
         
     except Exception as e:
-        logger.error(f"Error fetching task status: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching task status: {str(e)}")
+        logger.error(f"Error getting task status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting status: {str(e)}")
 
 
 @router.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "service": "Restaurant Review Analysis API"
-    }
+    return {"status": "ok", "message": "API is running"}
