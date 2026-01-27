@@ -4,11 +4,15 @@ import io
 import json as json_lib
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
 import httpx
+
+# Increase CSV field size limit to handle large review data
+csv.field_size_limit(sys.maxsize)
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +44,12 @@ class GoogleMapsScraper:
             "name": f"scrape_{int(time.time())}",
             "keywords": [query],
             "lang": "en",
-            "depth": 10,
+            "depth": 1,  # Only get the single best matching place
             "max_time": 600,
             "fast_mode": False,
             "json": True,
-            "email": False
+            "email": False,
+            "extra_reviews": True  # Fetch extended reviews (up to ~300)
         }
 
         try:
@@ -150,7 +155,7 @@ class GoogleMapsScraper:
                 })
 
             recent_reviews = []
-            cutoff = datetime.utcnow() - timedelta(days=32)
+            cutoff = datetime.utcnow() - timedelta(days=30)  # Only reviews from last 30 days
 
             for r in reviews:
                 try:
