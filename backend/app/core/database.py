@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import AsyncGenerator
+import redis.asyncio as redis
 from app.core.config import settings
 
 engine = create_async_engine(settings.postgres_url, echo=True, future=True)
@@ -49,3 +50,21 @@ class MongoDB:
 
 def get_mongo_collection(collection_name: str):
     return MongoDB.get_collection(collection_name)
+
+
+class RedisClient:
+    client: redis.Redis = None
+    
+    @classmethod
+    async def connect(cls):
+        redis_url = f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
+        cls.client = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        
+    @classmethod
+    async def close(cls):
+        if cls.client:
+            await cls.client.close()
+            
+    @classmethod
+    def get_client(cls):
+        return cls.client

@@ -11,6 +11,8 @@ import sys
 import time
 from typing import Any, Dict, List
 
+import json
+from app.core.database import RedisClient
 import httpx
 
 # Increase CSV field size limit
@@ -48,6 +50,19 @@ class PlaceSearchService:
         """
         logger.info(f"Searching places for: {query}")
 
+        # Check Cache
+        try:
+            cache_key = f"place_search:{query.lower().strip()}:{limit}"
+            redis_client = RedisClient.get_client()
+            
+            if redis_client:
+                cached_data = await redis_client.get(cache_key)
+                if cached_data:
+                    logger.info(f"Cache hit for: {query}")
+                    return json.loads(cached_data)
+        except Exception as e:
+            logger.error(f"Redis cache error: {e}")
+
         payload = {
             "name": f"search_{int(time.time())}",
             "keywords": [query],
@@ -79,7 +94,16 @@ class PlaceSearchService:
                     status = (job_status.get("Status") or job_status.get("status", "")).lower()
 
                     if status in ["completed", "ok", "done", "success"]:
-                        return await self._download_and_parse_places(job_id)
+                        results = await self._download_and_parse_places(job_id)
+                        
+                        # Cache results
+                        try:
+                            if redis_client and results:
+                                await redis_client.setex(cache_key, 86400, json.dumps(results))
+                        except Exception as e:
+                            logger.error(f"Redis set error: {e}")
+                            
+                        return results
                     elif status in ["failed", "error"]:
                         logger.error(f"Search job failed: {job_status}")
                         return []
