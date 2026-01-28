@@ -10,6 +10,9 @@ const jakartaSans = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "Restaurant Review SaaS",
   description: "AI-powered analysis for your restaurant reviews",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({

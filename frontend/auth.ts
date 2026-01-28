@@ -15,16 +15,44 @@ export const config = {
                 password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
-                // Placeholder logic until backend API is ready
-                // TODO: Replace with fetch to backend API
-                if (credentials?.username === "user" && credentials?.password === "password") {
+                if (!credentials?.username || !credentials?.password) return null;
+
+                try {
+                    // We must use the Docker service name 'backend-api' if this runs on server
+                    // But if it runs on client? NextAuth authorize runs on server.
+                    // Let's use an env var or a network-aware URL.
+                    // For now, assuming internal docker network.
+                    const res = await fetch("http://backend-api:8000/api/v1/auth/token", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: new URLSearchParams({
+                            username: credentials.username as string,
+                            password: credentials.password as string,
+                        }),
+                        cache: 'no-store'
+                    });
+
+                    if (!res.ok) {
+                        console.error("Auth failed:", await res.text());
+                        return null;
+                    }
+
+                    const tokenData = await res.json();
+
+                    // Decode token or make another call to get user details?
+                    // For simplicity, we just assume email and use a boolean flag.
+                    // Ideally, we'd hit a /me endpoint here.
+
                     return {
-                        id: "1",
-                        name: "Demo User",
-                        email: "user@example.com",
+                        id: credentials.username as string,
+                        name: "User", // We should fetch this
+                        email: credentials.username as string,
+                        accessToken: tokenData.access_token
                     };
+                } catch (e) {
+                    console.error("Auth error:", e);
+                    return null;
                 }
-                return null;
             }
         }),
     ],

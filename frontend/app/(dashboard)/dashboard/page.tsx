@@ -4,7 +4,7 @@ import { PlusCircle, Search } from "lucide-react";
 
 // Types matching backend response
 interface AnalysisHistoryItem {
-    id: int;
+    id: number;
     restaurant_name: string | null;
     sentiment_score: number | null;
     summary: string | null;
@@ -62,7 +62,7 @@ export default async function DashboardPage() {
                     <p className="text-gray-400 mt-1">Manage and view your restaurant review analyses.</p>
                 </div>
                 <Link
-                    href="/#analysis-form"
+                    href="/dashboard/analyze"
                     className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-6 py-3 rounded-lg font-medium transition-all shadow-lg shadow-purple-900/20 transform hover:-translate-y-0.5"
                 >
                     <PlusCircle className="w-5 h-5" />
@@ -136,8 +136,8 @@ export default async function DashboardPage() {
                                         <td className="px-6 py-4">
                                             {item.sentiment_score !== null ? (
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.sentiment_score > 0.5 ? "bg-green-500/10 text-green-400" :
-                                                        item.sentiment_score > 0 ? "bg-yellow-500/10 text-yellow-400" :
-                                                            "bg-red-500/10 text-red-400"
+                                                    item.sentiment_score > 0 ? "bg-yellow-500/10 text-yellow-400" :
+                                                        "bg-red-500/10 text-red-400"
                                                     }`}>
                                                     {item.sentiment_score.toFixed(2)}
                                                 </span>

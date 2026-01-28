@@ -26,6 +26,7 @@ class AnalysisResultSchema(BaseModel):
     summary: str
     complaints: List[str] = Field(default_factory=list)
     praises: List[str] = Field(default_factory=list)
+    recommended_actions: List[str] = Field(default_factory=list)
     reviews_analyzed: int
     restaurant_name: Optional[str] = None
     restaurant_rating: Optional[float] = None

@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Restaurant Review Analysis SaaS"
     VERSION: str = "1.0.0"
     
+    # Auth Settings
+    SECRET_KEY: str = "development_secret_key"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
     # Database Settings - PostgreSQL
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432

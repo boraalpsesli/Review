@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LayoutDashboard, History, Settings, LogOut, PlusCircle } from "lucide-react";
 import { signOut } from "@/auth";
+import Logo from "@/components/Logo";
 
 const navigation = [
     { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
@@ -12,9 +13,9 @@ export default function Sidebar() {
     return (
         <div className="w-64 bg-white/5 backdrop-blur-xl border-r border-white/10 flex flex-col h-full bg-gradient-to-br from-gray-900/50 to-black/50">
             <div className="p-6">
-                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-                    Insight<span className="text-white">Flow</span>
-                </h1>
+                <Link href="/dashboard" className="block">
+                    <Logo withText={true} />
+                </Link>
             </div>
 
             <nav className="flex-1 px-4 space-y-2">
@@ -30,7 +31,7 @@ export default function Sidebar() {
                 ))}
                 <div className="pt-4 mt-4 border-t border-white/10">
                     <Link
-                        href="/#analysis-form"
+                        href="/dashboard/analyze"
                         className="flex items-center gap-3 px-4 py-3 text-purple-300 hover:bg-purple-500/20 hover:text-purple-100 rounded-xl transition-all group"
                     >
                         <PlusCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />

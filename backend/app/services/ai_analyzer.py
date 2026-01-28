@@ -80,26 +80,49 @@ class GeminiAnalyzer:
         return "\n".join(reviews_formatted)
     
     def _create_analysis_prompt(self, reviews_text: str, restaurant_name: str, total_reviews: int) -> str:
-        prompt = f"""Analyze these {total_reviews} customer reviews for "{restaurant_name}".
+        prompt = f"""You are a Senior Restaurant Business Consultant. Analyze these {total_reviews} customer reviews for "{restaurant_name}" to provide professional operational insights.
 
 Reviews:
 {reviews_text}
 
-Provide analysis in this exact JSON format:
+Analyze the feedback across these 5 Operational Pillars:
+1. Food Quality (Taste, temperature, presentation, consistency)
+2. Service (Speed, attentiveness, friendliness, order accuracy)
+3. Ambiance & Cleanliness (Atmosphere, hygiene, noise level, seating)
+4. Value (Pricing vs. portion/quality, hidden fees)
+5. Delivery (if applicable) (Packing, speed, condition)
+
+Provide the output in this EXACT JSON format:
 {{
-    "sentiment_score": <float between -1.0 and 1.0, where -1 is very negative, 0 is neutral, 1 is very positive>,
-    "summary": "<A concise 2-3 sentence summary of overall customer sentiment and key themes>",
-    "complaints": [<list of 3-5 issues, criticisms, or areas for improvement mentioned in reviews>],
-    "praises": [<list of 3-5 most common positive aspects>]
+    "sentiment_score": <float -1.0 to 1.0>,
+    "summary": "<Professional executive summary focusing on brand health and key operational wins/losses. 2-3 sentences.>",
+    "praises": [
+        "<Specific operational strength (e.g., 'Consistently hot fries', 'Staff manages peak rush well')>",
+        "<strength 2>",
+        "<strength 3>",
+        "<strength 4>",
+        "<strength 5>"
+    ],
+    "complaints": [
+        "<Critical operational failure (e.g., 'Burgers arriving cold', 'Waitstaff ignoring seated tables')>",
+        "<weakness 2>",
+        "<weakness 3>",
+        "<weakness 4>",
+        "<weakness 5>"
+    ],
+    "recommended_actions": [
+        "<Actionable business step 1>",
+        "<Actionable business step 2>",
+        "<Actionable business step 3>"
+    ]
 }}
 
 Rules:
-- Base sentiment_score on overall tone
-- Be specific (e.g., "slow service during peak hours" not just "slow service")
-- IMPORTANT: Always identify at least 2-3 complaints/areas for improvement, even from mostly positive reviews. Look for subtle criticisms, suggestions, or "could be better" comments.
-- If reviews mention negative experiences, ALWAYS include them in complaints
-- Each complaint/praise: 5-10 words max
-- Return ONLY valid JSON, no markdown or extra text"""
+- Tone: Professional, constructive, business-oriented.
+- Avoid generic phrases like "Good food". Use specific insights like "High-quality meat usage noted".
+- If sentiment is negative, explain the ROOT CAUSE (e.g., "Kitchen slow" -> "Likely understaffed kitchen during weekends").
+- recommended_actions must be specific solutions (e.g., "Implement temperature checks at pass", "Retrain staff on greeting protocols").
+- Return ONLY valid JSON."""
         
         return prompt
     
@@ -131,6 +154,7 @@ Rules:
                 "summary": result.get('summary', ''),
                 "complaints": result.get('complaints', [])[:5],
                 "praises": result.get('praises', [])[:5],
+                "recommended_actions": result.get('recommended_actions', [])[:5],
                 "reviews_analyzed": reviews_count
             }
             
@@ -156,5 +180,6 @@ Rules:
             "summary": f"Based on {len(reviews)} reviews with an average rating of {avg_rating:.1f}/5.",
             "complaints": ["Analysis unavailable - AI service error"],
             "praises": ["Analysis unavailable - AI service error"],
+            "recommended_actions": [],
             "reviews_analyzed": len(reviews)
         }

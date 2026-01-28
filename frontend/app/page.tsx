@@ -1,7 +1,7 @@
-import Image from "next/image";
-import AnalysisForm from "../components/AnalysisForm";
+import { Navbar } from "../components";
+
 import Link from "next/link";
-import { ArrowRight, Star, TrendingUp, ShieldCheck, Zap, BarChart3, Users } from "lucide-react";
+import { ArrowRight, TrendingUp, ShieldCheck, Zap, Users } from "lucide-react";
 
 export default function Home() {
   return (
@@ -14,32 +14,7 @@ export default function Home() {
       </div>
 
       {/* Navbar */}
-      <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/50 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20"></div>
-            <span className="font-bold text-lg tracking-tight text-white">ReviewAI</span>
-          </div>
-
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#demo" className="hover:text-white transition-colors">How it works</a>
-            <a href="/pricing" className="hover:text-white transition-colors">Pricing</a>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-              Log in
-            </Link>
-            <Link
-              href="/register"
-              className="px-4 py-2 rounded-full bg-white text-black text-sm font-semibold hover:bg-zinc-200 transition-colors shadow-lg shadow-white/10"
-            >
-              Start Free
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       <main className="relative z-10 flex-grow">
 
@@ -64,8 +39,13 @@ export default function Home() {
               Identify trends, spot fake reviews, and outline improvements in seconds.
             </p>
 
-            <div id="analysis-form" className="flex flex-col md:flex-row items-center justify-center gap-4 mb-16 scroll-mt-24 animate-slide-up" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
-              <AnalysisForm />
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-slide-up" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
+              <Link href="/register" className="px-8 py-4 rounded-full bg-white text-black font-bold text-lg hover:bg-zinc-200 hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,255,255,0.3)] flex items-center gap-2">
+                Start Free Trial <ArrowRight className="w-5 h-5" />
+              </Link>
+              <Link href="#demo" className="px-8 py-4 rounded-full bg-white/10 text-white font-medium text-lg hover:bg-white/20 backdrop-blur-md border border-white/10 transition-all">
+                View Demo
+              </Link>
             </div>
 
             {/* Mock UI Showcase */}
