@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 
 type PlaceInfo = {
     title: string;
@@ -23,6 +24,7 @@ type AnalysisResult = {
 };
 
 export default function AnalysisForm() {
+    const { data: session } = useSession();
     const [query, setQuery] = useState("");
     const [places, setPlaces] = useState<PlaceInfo[]>([]);
     const [selectedPlace, setSelectedPlace] = useState<PlaceInfo | null>(null);
@@ -90,6 +92,7 @@ export default function AnalysisForm() {
                 body: JSON.stringify({
                     place_url: selectedPlace.link,
                     place_name: selectedPlace.title,
+                    user_id: session?.user?.id || null // Pass user ID
                 }),
             });
 

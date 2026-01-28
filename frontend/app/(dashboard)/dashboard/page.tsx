@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import Link from "next/link";
-import { PlusCircle, Search } from "lucide-react";
+import { PlusCircle, Search, Calendar } from "lucide-react";
+import DashboardCharts from "@/components/dashboard/DashboardCharts";
 
 // Types matching backend response
 interface AnalysisHistoryItem {
@@ -13,27 +15,29 @@ interface AnalysisHistoryItem {
     google_maps_url: string | null;
 }
 
+interface DashboardStats {
+    total_analyzed: number;
+    avg_sentiment: number;
+    sentiment_trend: {
+        date: string;
+        volume: number;
+        avg_sentiment: number;
+    }[];
+    sentiment_distribution: {
+        positive: number;
+        neutral: number;
+        negative: number;
+    };
+}
+
 async function getAnalyses(userId: string) {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://backend-api:8000"; // Use internal docker name for server-side
-    // Note: In dev with docker, internal fetches need to use service name 'backend-api' 
-    // but typically we configure this via env vars.
-    // However, NEXT_PUBLIC_API_URL represents client-side URL. 
-    // For server-side fetch inside docker, we might need a separate var or fallback.
-
-    // Fallback logic for Docker environment if not set
-    const url = process.env.INTERNAL_API_URL || "http://backend-api:8000";
-
+    const apiUrl = process.env.INTERNAL_API_URL || "http://backend-api:8000";
     try {
-        const res = await fetch(`${url}/api/v1/analyses?user_id=${userId}&limit=10`, {
-            cache: 'no-store', // Always fetch fresh
+        const res = await fetch(`${apiUrl}/api/v1/analyses?user_id=${userId}&limit=10`, {
+            cache: 'no-store',
             next: { tags: ['analyses'] }
         });
-
-        if (!res.ok) {
-            console.error("Failed to fetch analyses:", await res.text());
-            return [];
-        }
-
+        if (!res.ok) return [];
         return await res.json() as AnalysisHistoryItem[];
     } catch (e) {
         console.error("Error fetching analyses:", e);
@@ -41,55 +45,76 @@ async function getAnalyses(userId: string) {
     }
 }
 
-export default async function DashboardPage() {
+async function getStats(userId: string, days: number = 30) {
+    const apiUrl = process.env.INTERNAL_API_URL || "http://backend-api:8000";
+    try {
+        const res = await fetch(`${apiUrl}/api/v1/analyses/stats?user_id=${userId}&days=${days}`, {
+            cache: 'no-store',
+            next: { tags: ['stats'] }
+        });
+        if (!res.ok) return null;
+        return await res.json() as DashboardStats;
+    } catch (e) {
+        console.error("Error fetching stats:", e);
+        return null;
+    }
+}
+
+export default async function DashboardPage({
+    searchParams,
+}: {
+    searchParams: { days?: string };
+}) {
     const session = await auth();
+    if (!session?.user?.id) {
+        redirect("/login");
+    }
 
-    // Safe guard: Middleware should protect this, but good to check
-    if (!session?.user?.id) return null; // Or redirect
-
-    // Use a hardcoded ID for demo if auth provider doesn't return numeric ID yet
-    // In real implementation, session.user.id would be the DB ID.
     const userId = session.user.id || "1";
+    const days = searchParams.days ? parseInt(searchParams.days) : 30; // Default to 30 days
 
-    const analyses = await getAnalyses(userId);
+    const analysesPromise = getAnalyses(userId);
+    const statsPromise = getStats(userId, days);
+
+    const [analyses, stats] = await Promise.all([analysesPromise, statsPromise]);
 
     return (
         <div className="space-y-8">
-            {/* Welcome Section */}
+            {/* Header & Controls */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Dashboard Overview</h1>
                     <p className="text-gray-400 mt-1">Manage and view your restaurant review analyses.</p>
                 </div>
-                <Link
-                    href="/dashboard/analyze"
-                    className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-6 py-3 rounded-lg font-medium transition-all shadow-lg shadow-purple-900/20 transform hover:-translate-y-0.5"
-                >
-                    <PlusCircle className="w-5 h-5" />
-                    New Analysis
-                </Link>
+                <div className="flex items-center gap-3">
+                    {/* Time Range Filter */}
+                    <div className="flex bg-white/5 border border-white/10 rounded-lg p-1">
+                        <Link
+                            href="/dashboard?days=7"
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${days === 7 ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                        >
+                            7 Days
+                        </Link>
+                        <Link
+                            href="/dashboard?days=30"
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${days === 30 ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                        >
+                            30 Days
+                        </Link>
+                    </div>
+
+                    <Link
+                        href="/dashboard/analyze"
+                        className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-lg shadow-purple-900/20 transform hover:-translate-y-0.5"
+                    >
+                        <PlusCircle className="w-5 h-5" />
+                        New Analysis
+                    </Link>
+                </div>
             </div>
 
-            {/* Stats - Placeholder */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
-                    <h3 className="text-gray-400 text-sm font-medium">Total Analyses</h3>
-                    <p className="text-3xl font-bold text-white mt-2">{analyses.length}</p>
-                </div>
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
-                    <h3 className="text-gray-400 text-sm font-medium">Avg Sentiment</h3>
-                    <p className="text-3xl font-bold text-green-400 mt-2">
-                        {analyses.length > 0
-                            ? (analyses.reduce((acc, curr) => acc + (curr.sentiment_score || 0), 0) / analyses.length).toFixed(2)
-                            : "N/A"
-                        }
-                    </p>
-                </div>
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
-                    <h3 className="text-gray-400 text-sm font-medium">Plan Usage</h3>
-                    <p className="text-3xl font-bold text-purple-400 mt-2">{analyses.length} / 50</p>
-                </div>
-            </div>
+            {/* Charts Section */}
+            {stats && <DashboardCharts stats={stats} />}
 
             {/* Recent Activity Table */}
             <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-sm">
