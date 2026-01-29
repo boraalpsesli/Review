@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.schemas.analysis import AnalyzeRequest, AnalyzeResponse, TaskStatusResponse, AnalysisHistoryItem, AnalysisResultSchema
+from app.schemas.analysis import AnalyzeRequest, AnalyzeResponse, TaskStatusResponse, AnalysisHistoryItem, AnalysisResultSchema, ReviewListResponse, ReviewItem
 from app.worker.tasks import analyze_restaurant_task
 from app.core.database import get_db
 from app.models.restaurant import AnalysisReport
@@ -246,3 +246,104 @@ async def get_analysis(
     except Exception as e:
         logger.error(f"Error fetching analysis {analysis_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching analysis: {str(e)}")
+@router.get("/analyses/{analysis_id}/reviews", response_model=ReviewListResponse)
+async def get_analysis_reviews(
+    analysis_id: int,
+    user_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get raw scraped reviews for a specific analysis.
+    """
+    try:
+        # 1. Get Analysis Report and Restaurant URL
+        from sqlalchemy.orm import joinedload
+        query = select(AnalysisReport).options(joinedload(AnalysisReport.restaurant)).where(
+            AnalysisReport.id == analysis_id,
+            AnalysisReport.user_id == user_id
+        )
+        result = await db.execute(query)
+        report = result.scalars().first()
+        
+        if not report or not report.restaurant:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+            
+        restaurant_url = report.restaurant.google_maps_url
+        restaurant_name = report.restaurant.name
+        
+        # 2. Query MongoDB for latest reviews
+        from app.core.database import get_mongo_collection
+        from pymongo import DESCENDING
+        
+        collection = get_mongo_collection("raw_reviews")
+        
+        # Find document matching the URL, sort by scraped_at desc to get latest
+        doc = await collection.find_one(
+            {"query": restaurant_url},
+            sort=[("scraped_at", DESCENDING)]
+        )
+        
+        reviews_data = []
+        if doc and "reviews" in doc:
+            for r in doc["reviews"]:
+                # Map raw review dict to schema
+                # Raw review structure depends on scraper but usually has text, rating, date
+                reviews_data.append(ReviewItem(
+                    text=r.get("text"),
+                    rating=r.get("rating"),
+                    author=r.get("author"),
+                    date=r.get("date_text"),
+                    source="Google Maps"
+                ))
+        
+        # Helper to parse date for sorting
+        def parse_review_date(r: ReviewItem):
+            if not r.date or r.date == "Unknown Date":
+                return datetime.min 
+            try:
+                # Handle YYYY-M-D or YYYY-MM-DD
+                if "-" in r.date and "T" not in r.date: # Simple date format
+                     try:
+                        return datetime.strptime(r.date, "%Y-%m-%d")
+                     except ValueError:
+                        pass
+                
+                # Handle relative dates (e.g., "2 days ago", "a week ago")
+                date_str = r.date.lower()
+                now = datetime.now()
+                
+                if "ago" in date_str:
+                    try:
+                        val = int(''.join(filter(str.isdigit, date_str)) or 1) # Extract number, default 1 for "a week ago"
+                    except:
+                        val = 1
+                        
+                    if "minute" in date_str or "hour" in date_str:
+                        return now # Treat as very recent
+                    elif "day" in date_str:
+                        return now - timedelta(days=val)
+                    elif "week" in date_str:
+                        return now - timedelta(weeks=val)
+                    elif "month" in date_str:
+                        return now - timedelta(days=val*30)
+                    elif "year" in date_str:
+                        return now - timedelta(days=val*365)
+                        
+                return datetime.min
+            except Exception:
+                return datetime.min
+
+        # Sort descending (newest first)
+        reviews_data.sort(key=parse_review_date, reverse=True)
+
+        return ReviewListResponse(
+            restaurant_name=restaurant_name,
+            total_reviews=len(reviews_data),
+            reviews=reviews_data
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching reviews for analysis {analysis_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching reviews: {str(e)}")

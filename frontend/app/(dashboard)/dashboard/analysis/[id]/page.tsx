@@ -22,15 +22,11 @@ async function getAnalysis(id: string, userId: string) {
     const url = process.env.INTERNAL_API_URL || "http://backend-api:8000";
 
     try {
-        console.log(`Fetching analysis ${id} for user ${userId} from ${url}`);
         const res = await fetch(`${url}/api/v1/analyses/${id}?user_id=${userId}`, {
             cache: 'no-store',
         });
 
-        if (res.status === 404) {
-            console.error(`Analysis ${id} not found for user ${userId}. API Response: 404`);
-            return null;
-        }
+        if (res.status === 404) return null;
         if (!res.ok) {
             console.error("Failed to fetch analysis:", await res.text());
             return null;
@@ -86,6 +82,12 @@ export default async function AnalysisDetailPage(props: { params: Promise<{ id: 
                     >
                         View on Google Maps <ExternalLink className="w-3 h-3" />
                     </a>
+                    <Link
+                        href={`/dashboard/analysis/${analysis.id}/reviews`}
+                        className="text-sm text-gray-400 hover:text-gray-300 flex items-center gap-1 mt-1 transition-colors"
+                    >
+                        View {analysis.reviews_analyzed} Raw Reviews <ArrowLeft className="w-3 h-3 rotate-180" />
+                    </Link>
                 </div>
             </div>
 

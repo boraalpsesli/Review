@@ -60,3 +60,17 @@ class AnalysisHistoryItem(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class ReviewItem(BaseModel):
+    text: Optional[str] = None
+    rating: Optional[float] = None
+    author: Optional[str] = None
+    date: Optional[str] = None
+    source: str = "Google Maps"
+
+
+class ReviewListResponse(BaseModel):
+    restaurant_name: str
+    total_reviews: int
+    reviews: List[ReviewItem]
