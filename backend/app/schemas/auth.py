@@ -27,3 +27,6 @@ class UserResponse(UserBase):
 
     class Config:
         from_attributes = True
+
+class TokenPayload(BaseModel):
+    sub: Optional[str] = None

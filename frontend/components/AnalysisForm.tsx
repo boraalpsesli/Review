@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { Store } from "lucide-react";
+
 
 type PlaceInfo = {
     title: string;
@@ -12,6 +14,10 @@ type PlaceInfo = {
     link: string;
     thumbnail: string;
 };
+
+// ... (existing code)
+
+
 
 type AnalysisResult = {
     restaurant_name: string;
@@ -184,12 +190,25 @@ export default function AnalysisForm() {
                                 className="w-full text-left p-4 rounded-xl bg-zinc-800/50 border border-white/5 hover:border-purple-500/50 hover:bg-zinc-800 transition-all group cursor-pointer"
                             >
                                 <div className="flex items-start gap-4">
-                                    {place.thumbnail && (
-                                        <img
-                                            src={place.thumbnail}
-                                            alt={place.title}
-                                            className="w-16 h-16 rounded-lg object-cover bg-zinc-700"
-                                        />
+                                    {place.thumbnail ? (
+                                        <div className="relative w-16 h-16 shrink-0">
+                                            <img
+                                                src={place.thumbnail}
+                                                alt={place.title}
+                                                className="w-full h-full rounded-lg object-cover bg-zinc-700"
+                                                onError={(e) => {
+                                                    e.currentTarget.style.opacity = '0';
+                                                    e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
+                                                }}
+                                            />
+                                            <div className="fallback-icon hidden absolute inset-0 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10">
+                                                <Store className="w-8 h-8 text-zinc-600" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="w-16 h-16 shrink-0 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10">
+                                            <Store className="w-8 h-8 text-zinc-600" />
+                                        </div>
                                     )}
                                     <div className="flex-1">
                                         <h4 className="text-white font-semibold group-hover:text-purple-300 transition-colors">
@@ -227,12 +246,25 @@ export default function AnalysisForm() {
                 <div className="mb-8 p-6 rounded-2xl bg-zinc-800/50 border border-purple-500/30">
                     <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-4">
-                            {selectedPlace.thumbnail && (
-                                <img
-                                    src={selectedPlace.thumbnail}
-                                    alt={selectedPlace.title}
-                                    className="w-20 h-20 rounded-xl object-cover bg-zinc-700"
-                                />
+                            {selectedPlace.thumbnail ? (
+                                <div className="relative w-20 h-20 shrink-0">
+                                    <img
+                                        src={selectedPlace.thumbnail}
+                                        alt={selectedPlace.title}
+                                        className="w-full h-full rounded-xl object-cover bg-zinc-700"
+                                        onError={(e) => {
+                                            e.currentTarget.style.opacity = '0';
+                                            e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
+                                        }}
+                                    />
+                                    <div className="fallback-icon hidden absolute inset-0 rounded-xl bg-zinc-800 flex items-center justify-center border border-white/10">
+                                        <Store className="w-10 h-10 text-zinc-600" />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="w-20 h-20 shrink-0 rounded-xl bg-zinc-800 flex items-center justify-center border border-white/10">
+                                    <Store className="w-10 h-10 text-zinc-600" />
+                                </div>
                             )}
                             <div>
                                 <h3 className="text-xl font-bold text-white">{selectedPlace.title}</h3>

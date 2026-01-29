@@ -38,16 +38,30 @@ export const config = {
                     }
 
                     const tokenData = await res.json();
+                    const accessToken = tokenData.access_token;
 
-                    // Decode token or make another call to get user details?
-                    // For simplicity, we just assume email and use a boolean flag.
-                    // Ideally, we'd hit a /me endpoint here.
+                    // Fetch user details
+                    const userRes = await fetch("http://backend-api:8000/api/v1/auth/me", {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${accessToken}`
+                        },
+                        cache: 'no-store'
+                    });
+
+                    let name = "User";
+                    if (userRes.ok) {
+                        const userData = await userRes.json();
+                        if (userData.first_name || userData.last_name) {
+                            name = `${userData.first_name || ''} ${userData.last_name || ''}`.trim();
+                        }
+                    }
 
                     return {
                         id: credentials.username as string,
-                        name: "User", // We should fetch this
+                        name: name,
                         email: credentials.username as string,
-                        accessToken: tokenData.access_token
+                        accessToken: accessToken
                     };
                 } catch (e) {
                     console.error("Auth error:", e);

@@ -204,6 +204,8 @@ async def get_analysis(
     Get a single analysis report by ID.
     """
     try:
+        logger.info(f"Fetching analysis {analysis_id} for user {user_id}")
+        
         from sqlalchemy.orm import joinedload
         query = select(AnalysisReport).options(joinedload(AnalysisReport.restaurant)).where(
             AnalysisReport.id == analysis_id,
@@ -214,17 +216,29 @@ async def get_analysis(
         report = result.scalars().first()
         
         if not report:
+            logger.warning(f"Analysis {analysis_id} not found for user {user_id}")
+            # Check if it exists for ANY user to debug mismatch
+            check_query = select(AnalysisReport.user_id).where(AnalysisReport.id == analysis_id)
+            check_result = await db.execute(check_query)
+            existing_user = check_result.scalar_one_or_none()
+            if existing_user:
+                 logger.warning(f"Analysis {analysis_id} actually belongs to user: {existing_user}")
+            
             raise HTTPException(status_code=404, detail="Analysis not found")
             
         return AnalysisResultSchema(
+            id=report.id,
             sentiment_score=report.sentiment_score,
             summary=report.summary,
-            complaints=report.complaints,
-            praises=report.praises,
+            complaints=report.complaints or [],
+            praises=report.praises or [],
             recommended_actions=[], # Add logic if/when we have this field
             reviews_analyzed=report.reviews_analyzed,
             restaurant_name=report.restaurant.name if report.restaurant else "Unknown Restaurant",
-            restaurant_rating=report.restaurant.rating if report.restaurant else None
+            restaurant_rating=report.restaurant.rating if report.restaurant else None,
+            google_maps_url=report.restaurant.google_maps_url if report.restaurant else None,
+            created_at=report.created_at,
+            status="COMPLETED"
         )
         
     except HTTPException:

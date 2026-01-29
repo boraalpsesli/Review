@@ -1,9 +1,17 @@
-import { Navbar } from "../components";
+import { Navbar } from "@/components";
 
 import Link from "next/link";
 import { ArrowRight, TrendingUp, ShieldCheck, Zap, Users } from "lucide-react";
 
-export default function Home() {
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
+
+export default async function Home() {
+  const session = await auth();
+  if (session?.user) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="min-h-screen bg-[#000212] flex flex-col overflow-hidden selection:bg-purple-500/30">
 

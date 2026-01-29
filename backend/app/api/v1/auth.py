@@ -4,6 +4,9 @@ from sqlalchemy.future import select
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 
+from app.api.deps import get_current_user
+from datetime import timedelta
+
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.auth import UserCreate, UserResponse, Token
@@ -11,6 +14,13 @@ from app.core.security import get_password_hash, verify_password, create_access_
 from app.core.config import settings
 
 router = APIRouter()
+
+@router.get("/me", response_model=UserResponse)
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    """
+    Get current user.
+    """
+    return current_user
 
 @router.post("/register", response_model=UserResponse)
 async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):

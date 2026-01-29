@@ -22,14 +22,18 @@ class TaskStatusResponse(BaseModel):
 
 
 class AnalysisResultSchema(BaseModel):
-    sentiment_score: float = Field(..., ge=-1.0, le=1.0)
-    summary: str
+    id: int
+    restaurant_name: Optional[str] = None
+    google_maps_url: Optional[str] = None
+    sentiment_score: Optional[float] = Field(None, ge=-1.0, le=1.0)
+    summary: Optional[str] = None
     complaints: List[str] = Field(default_factory=list)
     praises: List[str] = Field(default_factory=list)
     recommended_actions: List[str] = Field(default_factory=list)
-    reviews_analyzed: int
-    restaurant_name: Optional[str] = None
+    reviews_analyzed: Optional[int] = 0
     restaurant_rating: Optional[float] = None
+    created_at: datetime
+    status: str = "COMPLETED"
 
 
 class RestaurantSchema(BaseModel):

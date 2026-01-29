@@ -60,11 +60,10 @@ async function getStats(userId: string, days: number = 30) {
     }
 }
 
-export default async function DashboardPage({
-    searchParams,
-}: {
-    searchParams: { days?: string };
+export default async function DashboardPage(props: {
+    searchParams: Promise<{ days?: string }>;
 }) {
+    const searchParams = await props.searchParams;
     const session = await auth();
     if (!session?.user?.id) {
         redirect("/login");

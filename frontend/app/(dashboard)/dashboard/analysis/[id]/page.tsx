@@ -22,11 +22,15 @@ async function getAnalysis(id: string, userId: string) {
     const url = process.env.INTERNAL_API_URL || "http://backend-api:8000";
 
     try {
+        console.log(`Fetching analysis ${id} for user ${userId} from ${url}`);
         const res = await fetch(`${url}/api/v1/analyses/${id}?user_id=${userId}`, {
             cache: 'no-store',
         });
 
-        if (res.status === 404) return null;
+        if (res.status === 404) {
+            console.error(`Analysis ${id} not found for user ${userId}. API Response: 404`);
+            return null;
+        }
         if (!res.ok) {
             console.error("Failed to fetch analysis:", await res.text());
             return null;
@@ -39,7 +43,8 @@ async function getAnalysis(id: string, userId: string) {
     }
 }
 
-export default async function AnalysisDetailPage({ params }: { params: { id: string } }) {
+export default async function AnalysisDetailPage(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     const session = await auth();
     if (!session?.user?.id) return null;
 
@@ -141,7 +146,7 @@ export default async function AnalysisDetailPage({ params }: { params: { id: str
                                 Success Factors
                             </h3>
                             <ul className="space-y-3">
-                                {analysis.praises?.map((praise, i) => (
+                                {analysis.praises?.map((praise: string, i: number) => (
                                     <li key={i} className="flex gap-3 text-green-200/80 text-sm bg-green-500/5 p-3 rounded-lg border border-green-500/10">
                                         <span className="text-green-500 mt-0.5">•</span>
                                         {praise}
@@ -157,7 +162,7 @@ export default async function AnalysisDetailPage({ params }: { params: { id: str
                                 Areas for Improvement
                             </h3>
                             <ul className="space-y-3">
-                                {analysis.complaints?.map((complaint, i) => (
+                                {analysis.complaints?.map((complaint: string, i: number) => (
                                     <li key={i} className="flex gap-3 text-red-200/80 text-sm bg-red-500/5 p-3 rounded-lg border border-red-500/10">
                                         <span className="text-red-500 mt-0.5">•</span>
                                         {complaint}
