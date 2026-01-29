@@ -41,7 +41,9 @@ async def _async_analyze_restaurant(query: str, task_id: str, user_id: str = Non
     
     logger.info("Step 3: Analyzing reviews with Gemini AI")
     analyzer = GeminiAnalyzer()
-    analysis_result = await analyzer.analyze_reviews(reviews, restaurant_info['name'])
+    # Clean reviews for AI (remove images/profile_pics to keep payload lean)
+    ai_reviews = [{k: v for k, v in r.items() if k != 'profile_picture'} for r in reviews]
+    analysis_result = await analyzer.analyze_reviews(ai_reviews, restaurant_info['name'])
     
     logger.info("Step 4: Storing analysis results in PostgreSQL")
     restaurant_id = await _store_analysis_postgres(
@@ -56,6 +58,7 @@ async def _async_analyze_restaurant(query: str, task_id: str, user_id: str = Non
         "summary": analysis_result['summary'],
         "complaints": analysis_result['complaints'],
         "praises": analysis_result['praises'],
+        "recommended_actions": analysis_result.get('recommended_actions', []),
         "reviews_analyzed": analysis_result['reviews_analyzed'],
         "task_id": task_id
     }
@@ -100,15 +103,25 @@ async def _store_analysis_postgres(
         restaurant = result.scalar_one_or_none()
         
         if not restaurant:
-            restaurant = Restaurant(
-                name=restaurant_info['name'],
-                google_maps_url=query,
-                address=restaurant_info.get('address'),
-                rating=restaurant_info.get('rating'),
-                total_reviews=restaurant_info.get('total_reviews')
-            )
-            session.add(restaurant)
-            await session.flush()
+            try:
+                restaurant = Restaurant(
+                    name=restaurant_info['name'],
+                    google_maps_url=query,
+                    address=restaurant_info.get('address'),
+                    rating=restaurant_info.get('rating'),
+                    total_reviews=restaurant_info.get('total_reviews')
+                )
+                session.add(restaurant)
+                await session.flush()
+            except Exception:
+                # Fallback in case of race condition: try to fetch again
+                await session.rollback()
+                result = await session.execute(
+                    select(Restaurant).where(Restaurant.google_maps_url == query)
+                )
+                restaurant = result.scalar_one_or_none()
+                if not restaurant:
+                    raise  # Re-raise if still not found
         
         analysis_report = AnalysisReport(
             restaurant_id=restaurant.id,
@@ -118,6 +131,7 @@ async def _store_analysis_postgres(
             summary=analysis_result['summary'],
             complaints=analysis_result['complaints'],
             praises=analysis_result['praises'],
+            recommended_actions=analysis_result.get('recommended_actions', []),
             reviews_analyzed=analysis_result['reviews_analyzed'],
             raw_ai_response=analysis_result
         )

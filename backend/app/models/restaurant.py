@@ -31,6 +31,7 @@ class AnalysisReport(Base):
     summary = Column(Text)
     complaints = Column(JSON, default=list)
     praises = Column(JSON, default=list)
+    recommended_actions = Column(JSON, default=list)
     reviews_analyzed = Column(Integer)
     raw_ai_response = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

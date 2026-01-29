@@ -14,7 +14,7 @@ class GeminiAnalyzer:
             raise ValueError("GEMINI_API_KEY not set in environment variables")
         
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.model = genai.GenerativeModel('gemini-flash-latest')
     
     async def analyze_reviews(self, reviews: List[Dict], restaurant_name: str = "Restaurant") -> Dict:
         if not reviews:
@@ -23,6 +23,7 @@ class GeminiAnalyzer:
                 "summary": "No reviews available for analysis.",
                 "complaints": [],
                 "praises": [],
+                "recommended_actions": [],
                 "reviews_analyzed": 0
             }
         
@@ -30,30 +31,11 @@ class GeminiAnalyzer:
         prompt = self._create_analysis_prompt(reviews_text, restaurant_name, len(reviews))
         
         try:
-            schema = {
-                "type": "object",
-                "properties": {
-                    "sentiment_score": {"type": "number"},
-                    "summary": {"type": "string"},
-                    "complaints": {
-                        "type": "array",
-                        "items": {"type": "string"}
-                    },
-                    "praises": {
-                        "type": "array",
-                        "items": {"type": "string"}
-                    }
-                },
-                "required": ["sentiment_score", "summary", "complaints", "praises"]
-            }
-            
             response = await self.model.generate_content_async(
                 prompt,
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.7,
                     max_output_tokens=8192,
-                    response_mime_type="application/json",
-                    response_schema=schema,
                 )
             )
             
@@ -111,9 +93,11 @@ Provide the output in this EXACT JSON format:
         "<weakness 5>"
     ],
     "recommended_actions": [
-        "<Actionable business step 1>",
-        "<Actionable business step 2>",
-        "<Actionable business step 3>"
+        {{
+            "title": "<Short action title>",
+            "description": "<Detailed explanation of the step and expected outcome>"
+        }},
+        ... (3-4 items)
     ]
 }}
 
@@ -121,7 +105,7 @@ Rules:
 - Tone: Professional, constructive, business-oriented.
 - Avoid generic phrases like "Good food". Use specific insights like "High-quality meat usage noted".
 - If sentiment is negative, explain the ROOT CAUSE (e.g., "Kitchen slow" -> "Likely understaffed kitchen during weekends").
-- recommended_actions must be specific solutions (e.g., "Implement temperature checks at pass", "Retrain staff on greeting protocols").
+- recommended_actions must be specific solutions with clear impact.
 - Return ONLY valid JSON."""
         
         return prompt
@@ -154,7 +138,7 @@ Rules:
                 "summary": result.get('summary', ''),
                 "complaints": result.get('complaints', [])[:5],
                 "praises": result.get('praises', [])[:5],
-                "recommended_actions": result.get('recommended_actions', [])[:5],
+                "recommended_actions": result.get('recommended_actions', [])[:4],
                 "reviews_analyzed": reviews_count
             }
             

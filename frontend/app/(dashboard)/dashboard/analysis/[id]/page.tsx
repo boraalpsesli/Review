@@ -12,6 +12,7 @@ interface AnalysisResult {
     summary: string;
     complaints: string[];
     praises: string[];
+    recommended_actions: string[];
     reviews_analyzed: number;
     created_at: string;
     status: string;
@@ -142,55 +143,75 @@ export default async function AnalysisDetailPage(props: { params: Promise<{ id: 
                     {/* Complaints & Praises Split */}
                     <div className="grid md:grid-cols-2 gap-6">
                         {/* Praises */}
-                        <div className="bg-green-500/5 border border-green-500/20 rounded-2xl p-6">
-                            <h3 className="text-lg font-bold text-green-400 mb-4 flex items-center gap-2">
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-bold text-green-400 flex items-center gap-2 mb-2">
                                 <CheckCircle className="w-5 h-5" />
                                 Success Factors
                             </h3>
-                            <ul className="space-y-3">
+                            <div className="space-y-3">
                                 {analysis.praises?.map((praise: string, i: number) => (
-                                    <li key={i} className="flex gap-3 text-green-200/80 text-sm bg-green-500/5 p-3 rounded-lg border border-green-500/10">
-                                        <span className="text-green-500 mt-0.5">•</span>
-                                        {praise}
-                                    </li>
+                                    <div key={i} className="bg-green-500/5 border border-green-500/10 rounded-xl p-4 transition-all hover:bg-green-500/10">
+                                        <p className="text-green-200/90 text-sm leading-relaxed">
+                                            <span className="text-green-500 mr-2">•</span>
+                                            {praise}
+                                        </p>
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
                         </div>
 
                         {/* Complaints */}
-                        <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
-                            <h3 className="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-bold text-red-400 flex items-center gap-2 mb-2">
                                 <AlertTriangle className="w-5 h-5" />
                                 Areas for Improvement
                             </h3>
-                            <ul className="space-y-3">
+                            <div className="space-y-3">
                                 {analysis.complaints?.map((complaint: string, i: number) => (
-                                    <li key={i} className="flex gap-3 text-red-200/80 text-sm bg-red-500/5 p-3 rounded-lg border border-red-500/10">
-                                        <span className="text-red-500 mt-0.5">•</span>
-                                        {complaint}
-                                    </li>
+                                    <div key={i} className="bg-red-500/5 border border-red-500/10 rounded-xl p-4 transition-all hover:bg-red-500/10">
+                                        <p className="text-red-200/90 text-sm leading-relaxed">
+                                            <span className="text-red-500 mr-2">•</span>
+                                            {complaint}
+                                        </p>
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Right Column: Recommendations / Actions (Placeholder for future features) */}
+                {/* Right Column: Recommendations */}
                 <div className="space-y-6">
-                    <div className="bg-gradient-to-br from-purple-900/40 to-black border border-purple-500/20 rounded-2xl p-6">
-                        <h3 className="text-lg font-bold text-white mb-2">AI Recommendations</h3>
-                        <p className="text-gray-400 text-sm mb-6">Based on this analysis, here are suggested actions to improve your score.</p>
+                    <div className="bg-gradient-to-br from-purple-900/40 to-black border border-purple-500/20 rounded-2xl p-6 h-full backdrop-blur-sm">
+                        <h3 className="text-xl font-bold text-white mb-2">AI Recommendations</h3>
+                        <p className="text-gray-400 text-sm mb-6">Strategic actions to improve operational performance and customer trust.</p>
 
-                        <div className="space-y-4">
-                            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                                <h4 className="font-medium text-purple-300 text-sm mb-1">Reply to recent negative reviews</h4>
-                                <p className="text-xs text-gray-500">Address the "slow service" complaints mentions in 3 recent reviews.</p>
-                                <button className="mt-3 text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition-colors">Draft Reply</button>
-                            </div>
-                            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                                <h4 className="font-medium text-purple-300 text-sm mb-1">Highlight "Pasta" in menu</h4>
-                                <p className="text-xs text-gray-500">Your pasta dishes are receiving high praise. Feature them more.</p>
-                            </div>
+                        <div className="space-y-5">
+                            {analysis.recommended_actions?.length > 0 ? (
+                                analysis.recommended_actions.map((action: any, i: number) => {
+                                    const isObject = typeof action === 'object' && action !== null;
+                                    const title = isObject ? action.title : `Action ${i + 1}`;
+                                    const description = isObject ? action.description : action;
+
+                                    return (
+                                        <div key={i} className="p-5 rounded-xl bg-white/5 border border-white/10 hover:border-purple-500/30 transition-all group">
+                                            <h4 className="font-bold text-purple-300 text-sm mb-2 flex items-center gap-2">
+                                                <div className="w-5 h-5 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 text-[10px] font-bold">
+                                                    {i + 1}
+                                                </div>
+                                                {title}
+                                            </h4>
+                                            <p className="text-gray-400 text-xs leading-relaxed group-hover:text-gray-300 transition-colors">
+                                                {description}
+                                            </p>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="text-center py-12 border border-dashed border-white/10 rounded-xl">
+                                    <p className="text-gray-500 text-sm italic">New insights arriving soon...</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

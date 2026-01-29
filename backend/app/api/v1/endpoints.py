@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.schemas.analysis import AnalyzeRequest, AnalyzeResponse, TaskStatusResponse, AnalysisHistoryItem, AnalysisResultSchema, ReviewListResponse, ReviewItem
+from app.schemas.analysis import AnalyzeRequest, AnalyzeResponse, TaskStatusResponse, AnalysisHistoryItem, AnalysisResultSchema, ReviewListResponse, ReviewItem, AnalysisHistoryResponse
 from app.worker.tasks import analyze_restaurant_task
 from app.core.database import get_db
 from app.models.restaurant import AnalysisReport
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from datetime import datetime, timedelta
 from celery.result import AsyncResult
 import logging
@@ -68,7 +68,7 @@ async def health_check():
     return {"status": "ok", "message": "API is running"}
 
 
-@router.get("/analyses", response_model=list[AnalysisHistoryItem])
+@router.get("/analyses", response_model=AnalysisHistoryResponse)
 async def get_analyses(
     user_id: str,
     skip: int = 0,
@@ -79,16 +79,14 @@ async def get_analyses(
     Get analysis history for a user.
     """
     try:
-        # We need to join with Restaurant to get name info if needed, 
-        # but AnalysisReport table has most data. 
-        # Ideally, we should join to get fresh restaurant name if stored there.
-        # For now, simplistic query on AnalysisReport.
-        
-        # Note: In a real app we might need to filter by user_id if we associate reports with users.
-        # Current model has user_id on AnalysisReport.
-        
-        # Use joinedload to avoid N+1 queries. 
-        # Correct syntax for SQLAlchemy 2.0+ with select()
+        # Get total count
+        count_query = select(func.count()).select_from(AnalysisReport).where(
+            AnalysisReport.user_id == user_id
+        )
+        count_result = await db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        # Get paginated results
         from sqlalchemy.orm import joinedload
         query = select(AnalysisReport).options(joinedload(AnalysisReport.restaurant)).where(
             AnalysisReport.user_id == user_id
@@ -106,12 +104,12 @@ async def get_analyses(
                 sentiment_score=report.sentiment_score,
                 summary=report.summary,
                 created_at=report.created_at,
-                status="COMPLETED", # Assuming checked status or stored properly
+                status="COMPLETED",
                 google_maps_url=report.restaurant.google_maps_url if report.restaurant else None
             )
             response_items.append(item)
         
-        return response_items
+        return AnalysisHistoryResponse(items=response_items, total=total)
         
     except Exception as e:
         logger.error(f"Error fetching analyses: {str(e)}")
@@ -132,7 +130,8 @@ async def get_analysis_stats(
         start_date = datetime.utcnow() - timedelta(days=days)
         
         # Base query for user's reports in range
-        query = select(AnalysisReport).where(
+        from sqlalchemy.orm import joinedload
+        query = select(AnalysisReport).options(joinedload(AnalysisReport.restaurant)).where(
             AnalysisReport.user_id == user_id,
             AnalysisReport.created_at >= start_date
         ).order_by(AnalysisReport.created_at)
@@ -153,22 +152,20 @@ async def get_analysis_stats(
             
         avg_sentiment = sum(r.sentiment_score or 0 for r in reports) / total_analyzed
         
-        # Group by date for area chart
-        # We'll group by day
-        trend_data = {}
         distribution = {"positive": 0, "neutral": 0, "negative": 0}
         
+        # Individual points for trend (more granular "up and down")
+        sentiment_trend = []
         for r in reports:
-            date_key = r.created_at.strftime("%Y-%m-%d")
-            score = r.sentiment_score or 0
-            
-            # Trend
-            if date_key not in trend_data:
-                trend_data[date_key] = {"count": 0, "total_sentiment": 0}
-            trend_data[date_key]["count"] += 1
-            trend_data[date_key]["total_sentiment"] += score
+            sentiment_trend.append({
+                "date": r.created_at.isoformat(),
+                "volume": 1,
+                "avg_sentiment": r.sentiment_score or 0,
+                "restaurant_name": r.restaurant.name if r.restaurant else "Unknown"
+            })
             
             # Distribution
+            score = r.sentiment_score or 0
             if score > 0.6:
                 distribution["positive"] += 1
             elif score > 0.2:
@@ -176,15 +173,6 @@ async def get_analysis_stats(
             else:
                  distribution["negative"] += 1
                  
-        # Format trend list
-        sentiment_trend = []
-        for date, data in sorted(trend_data.items()):
-            sentiment_trend.append({
-                "date": date,
-                "volume": data["count"],
-                "avg_sentiment": data["total_sentiment"] / data["count"]
-            })
-            
         return {
             "total_analyzed": total_analyzed,
             "avg_sentiment": round(avg_sentiment, 2),
@@ -194,6 +182,9 @@ async def get_analysis_stats(
         
     except Exception as e:
         logger.error(f"Error fetching stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
+
+
 @router.get("/analyses/{analysis_id}", response_model=AnalysisResultSchema)
 async def get_analysis(
     analysis_id: int,
@@ -250,6 +241,8 @@ async def get_analysis(
 async def get_analysis_reviews(
     analysis_id: int,
     user_id: str,
+    skip: int = 0,
+    limit: int = 20,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -293,6 +286,7 @@ async def get_analysis_reviews(
                     rating=r.get("rating"),
                     author=r.get("author"),
                     date=r.get("date_text"),
+                    profile_picture=r.get("profile_picture"),
                     source="Google Maps"
                 ))
         
@@ -335,11 +329,15 @@ async def get_analysis_reviews(
 
         # Sort descending (newest first)
         reviews_data.sort(key=parse_review_date, reverse=True)
+        
+        # Paginate
+        total = len(reviews_data)
+        paginated_reviews = reviews_data[skip : skip + limit]
 
         return ReviewListResponse(
             restaurant_name=restaurant_name,
-            total_reviews=len(reviews_data),
-            reviews=reviews_data
+            total_reviews=total,
+            reviews=paginated_reviews
         )
         
     except HTTPException:

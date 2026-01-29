@@ -151,7 +151,8 @@ class GoogleMapsScraper:
                     'text': get_val(r, 'text', 'caption', 'Text', 'Description') or '',
                     'rating': float(get_val(r, 'stars', 'rating', 'Rating') or 0),
                     'author': get_val(r, 'reviewerName', 'name', 'Name') or 'Anonymous',
-                    'date_text': get_val(r, 'publishedAtDate', 'relativePublishTimeDescription', 'date', 'When') or ''
+                    'date_text': get_val(r, 'publishedAtDate', 'relativePublishTimeDescription', 'date', 'When') or '',
+                    'profile_picture': get_val(r, 'reviewerPhotoUrl', 'ProfilePicture', 'profile_picture') or ''
                 })
 
             recent_reviews = []

@@ -21,6 +21,11 @@ class TaskStatusResponse(BaseModel):
     error: Optional[str] = None
 
 
+class RecommendedAction(BaseModel):
+    title: str
+    description: str
+
+
 class AnalysisResultSchema(BaseModel):
     id: int
     restaurant_name: Optional[str] = None
@@ -29,7 +34,7 @@ class AnalysisResultSchema(BaseModel):
     summary: Optional[str] = None
     complaints: List[str] = Field(default_factory=list)
     praises: List[str] = Field(default_factory=list)
-    recommended_actions: List[str] = Field(default_factory=list)
+    recommended_actions: List[RecommendedAction] = Field(default_factory=list)
     reviews_analyzed: Optional[int] = 0
     restaurant_rating: Optional[float] = None
     created_at: datetime
@@ -56,10 +61,16 @@ class AnalysisHistoryItem(BaseModel):
     summary: Optional[str] = None
     created_at: datetime
     status: str = "COMPLETED"
+    recommended_actions: List[RecommendedAction] = Field(default_factory=list)
     google_maps_url: Optional[str] = None
     
     class Config:
         from_attributes = True
+
+
+class AnalysisHistoryResponse(BaseModel):
+    items: List[AnalysisHistoryItem]
+    total: int
 
 
 class ReviewItem(BaseModel):
@@ -67,6 +78,7 @@ class ReviewItem(BaseModel):
     rating: Optional[float] = None
     author: Optional[str] = None
     date: Optional[str] = None
+    profile_picture: Optional[str] = None
     source: str = "Google Maps"
 
 

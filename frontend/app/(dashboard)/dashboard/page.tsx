@@ -30,18 +30,23 @@ interface DashboardStats {
     };
 }
 
-async function getAnalyses(userId: string) {
+interface AnalysisHistoryResponse {
+    items: AnalysisHistoryItem[];
+    total: number;
+}
+
+async function getAnalyses(userId: string, skip: number = 0, limit: number = 5) {
     const apiUrl = process.env.INTERNAL_API_URL || "http://backend-api:8000";
     try {
-        const res = await fetch(`${apiUrl}/api/v1/analyses?user_id=${userId}&limit=10`, {
+        const res = await fetch(`${apiUrl}/api/v1/analyses?user_id=${userId}&skip=${skip}&limit=${limit}`, {
             cache: 'no-store',
             next: { tags: ['analyses'] }
         });
-        if (!res.ok) return [];
-        return await res.json() as AnalysisHistoryItem[];
+        if (!res.ok) return { items: [], total: 0 };
+        return await res.json() as AnalysisHistoryResponse;
     } catch (e) {
         console.error("Error fetching analyses:", e);
-        return [];
+        return { items: [], total: 0 };
     }
 }
 
@@ -61,7 +66,7 @@ async function getStats(userId: string, days: number = 30) {
 }
 
 export default async function DashboardPage(props: {
-    searchParams: Promise<{ days?: string }>;
+    searchParams: Promise<{ days?: string; page?: string }>;
 }) {
     const searchParams = await props.searchParams;
     const session = await auth();
@@ -70,12 +75,17 @@ export default async function DashboardPage(props: {
     }
 
     const userId = session.user.id || "1";
-    const days = searchParams.days ? parseInt(searchParams.days) : 30; // Default to 30 days
+    const days = searchParams.days ? parseInt(searchParams.days) : 30;
+    const currentPage = searchParams.page ? parseInt(searchParams.page) : 1;
+    const PAGE_SIZE = 5;
+    const skip = (currentPage - 1) * PAGE_SIZE;
 
-    const analysesPromise = getAnalyses(userId);
+    const analysesPromise = getAnalyses(userId, skip, PAGE_SIZE);
     const statsPromise = getStats(userId, days);
 
-    const [analyses, stats] = await Promise.all([analysesPromise, statsPromise]);
+    const [analysesData, stats] = await Promise.all([analysesPromise, statsPromise]);
+    const { items: analyses, total } = analysesData;
+    const totalPages = Math.ceil(total / PAGE_SIZE);
 
     return (
         <div className="space-y-8">
@@ -89,13 +99,13 @@ export default async function DashboardPage(props: {
                     {/* Time Range Filter */}
                     <div className="flex bg-white/5 border border-white/10 rounded-lg p-1">
                         <Link
-                            href="/dashboard?days=7"
+                            href={`/dashboard?days=7&page=${currentPage}`}
                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${days === 7 ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                         >
                             7 Days
                         </Link>
                         <Link
-                            href="/dashboard?days=30"
+                            href={`/dashboard?days=30&page=${currentPage}`}
                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${days === 30 ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                         >
                             30 Days
@@ -189,6 +199,44 @@ export default async function DashboardPage(props: {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="p-4 border-t border-white/10 flex items-center justify-between bg-white/5">
+                        <div className="text-xs text-gray-500">
+                            Showing <span className="text-gray-300">{skip + 1}</span> to <span className="text-gray-300">{Math.min(skip + PAGE_SIZE, total)}</span> of <span className="text-gray-300">{total}</span> analyses
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Link
+                                href={`/dashboard?days=${days}&page=${Math.max(1, currentPage - 1)}`}
+                                className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${currentPage === 1 ? 'border-white/5 text-gray-600 cursor-not-allowed' : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/10'}`}
+                                aria-disabled={currentPage === 1}
+                                tabIndex={currentPage === 1 ? -1 : undefined}
+                            >
+                                Previous
+                            </Link>
+                            <div className="flex items-center gap-1">
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                                    <Link
+                                        key={p}
+                                        href={`/dashboard?days=${days}&page=${p}`}
+                                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium transition-all ${currentPage === p ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+                                    >
+                                        {p}
+                                    </Link>
+                                ))}
+                            </div>
+                            <Link
+                                href={`/dashboard?days=${days}&page=${Math.min(totalPages, currentPage + 1)}`}
+                                className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${currentPage === totalPages ? 'border-white/5 text-gray-600 cursor-not-allowed' : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/10'}`}
+                                aria-disabled={currentPage === totalPages}
+                                tabIndex={currentPage === totalPages ? -1 : undefined}
+                            >
+                                Next
+                            </Link>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
