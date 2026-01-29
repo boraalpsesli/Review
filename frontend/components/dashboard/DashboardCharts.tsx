@@ -103,17 +103,32 @@ export default function DashboardCharts({ stats }: { stats: DashboardStats }) {
                                     dataKey="date"
                                     stroke="#9ca3af"
                                     fontSize={12}
-                                    tickFormatter={(val) => val.slice(5)} // Show MM-DD
+                                    tickFormatter={(val) => val.slice(5, 10)} // Show MM-DD
                                 />
-                                <YAxis stroke="#9ca3af" fontSize={12} domain={[0, 1]} />
+                                <YAxis stroke="#9ca3af" fontSize={12} domain={[-1, 1]} />
                                 <Tooltip
-                                    contentStyle={{ backgroundColor: "#18181b", borderColor: "#27272a", color: "#fff" }}
-                                    itemStyle={{ color: "#fff" }}
+                                    content={({ active, payload }) => {
+                                        if (active && payload && payload.length) {
+                                            const data = payload[0].payload;
+                                            return (
+                                                <div className="bg-[#18181b] border border-[#27272a] p-3 rounded-lg shadow-xl">
+                                                    <p className="text-white font-medium mb-1">{data.restaurant_name}</p>
+                                                    <p className="text-gray-400 text-xs mb-2">{new Date(data.date).toLocaleString()}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`w-2 h-2 rounded-full ${data.avg_sentiment > 0 ? 'bg-green-500' : 'bg-red-500'}`} />
+                                                        <span className="text-white font-bold">{(data.avg_sentiment * 100).toFixed(0)}% Sentiment</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    }}
                                 />
                                 <Area
-                                    type="monotone"
+                                    type="linear"
                                     dataKey="avg_sentiment"
                                     stroke="#8b5cf6"
+                                    strokeWidth={2}
                                     fillOpacity={1}
                                     fill="url(#colorSentiment)"
                                 />

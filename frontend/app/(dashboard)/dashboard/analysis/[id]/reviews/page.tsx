@@ -9,6 +9,7 @@ interface Review {
     rating: number;
     author: string;
     date: string;
+    profile_picture?: string;
     source: string;
 }
 
@@ -18,11 +19,11 @@ interface ReviewListResponse {
     reviews: Review[];
 }
 
-async function getReviews(id: string, userId: string) {
+async function getReviews(id: string, userId: string, skip: number = 0, limit: number = 20) {
     const url = process.env.INTERNAL_API_URL || "http://backend-api:8000";
 
     try {
-        const res = await fetch(`${url}/api/v1/analyses/${id}/reviews?user_id=${userId}`, {
+        const res = await fetch(`${url}/api/v1/analyses/${id}/reviews?user_id=${userId}&skip=${skip}&limit=${limit}`, {
             cache: 'no-store',
         });
 
@@ -38,17 +39,31 @@ async function getReviews(id: string, userId: string) {
     }
 }
 
-export default async function ReviewsPage(props: { params: Promise<{ id: string }> }) {
+export default async function ReviewsPage(props: {
+    params: Promise<{ id: string }>,
+    searchParams: Promise<{ page?: string }>
+}) {
     const params = await props.params;
+    const searchParams = await props.searchParams;
     const session = await auth();
-    if (!session?.user?.id) return null;
 
-    const userId = session.user.id || "1";
-    const data = await getReviews(params.id, userId);
+    if (!session?.user?.id) {
+        return null;
+    }
+
+    const PAGE_SIZE = 10;
+    const currentPage = searchParams.page ? parseInt(searchParams.page) : 1;
+    const skip = (currentPage - 1) * PAGE_SIZE;
+
+    const userId = session.user.id;
+    const data = await getReviews(params.id, userId, skip, PAGE_SIZE);
 
     if (!data) {
         notFound();
     }
+
+    const totalPages = Math.ceil(data.total_reviews / PAGE_SIZE);
+
 
     return (
         <div className="space-y-8 pb-12">
@@ -79,7 +94,18 @@ export default async function ReviewsPage(props: { params: Promise<{ id: string 
                     <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-purple-500/30 transition-colors">
                         <div className="flex justify-between items-start mb-3">
                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-xs font-bold text-white">
+                                {review.profile_picture ? (
+                                    <img
+                                        src={review.profile_picture}
+                                        alt={review.author}
+                                        className="w-8 h-8 rounded-full object-cover border border-white/10"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).style.display = 'none';
+                                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                        }}
+                                    />
+                                ) : null}
+                                <div className={`w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-xs font-bold text-white ${review.profile_picture ? 'hidden' : ''}`}>
                                     {review.author?.[0]?.toUpperCase() || <User className="w-4 h-4" />}
                                 </div>
                                 <div>
@@ -90,6 +116,7 @@ export default async function ReviewsPage(props: { params: Promise<{ id: string 
                                     </div>
                                 </div>
                             </div>
+
                             <div className="flex items-center gap-1 bg-yellow-500/10 px-2 py-1 rounded text-yellow-500 font-bold text-sm">
                                 {review.rating} <Star className="w-3 h-3 fill-current" />
                             </div>
@@ -106,6 +133,44 @@ export default async function ReviewsPage(props: { params: Promise<{ id: string 
                     </div>
                 )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-8">
+                    <Link
+                        href={`/dashboard/analysis/${params.id}/reviews?page=${Math.max(1, currentPage - 1)}`}
+                        className={`px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-sm font-medium transition-colors ${currentPage === 1 ? 'opacity-50 cursor-not-allowed text-gray-600' : 'hover:bg-white/10 text-white'}`}
+                        aria-disabled={currentPage === 1}
+                    >
+                        Previous
+                    </Link>
+
+                    <div className="flex items-center gap-1">
+                        {[...Array(totalPages)].map((_, i) => {
+                            const p = i + 1;
+                            // Only show current page, some before and some after if there are many?
+                            // For simplicity, showing all for now since it's only 100 reviews (5 pages)
+                            return (
+                                <Link
+                                    key={p}
+                                    href={`/dashboard/analysis/${params.id}/reviews?page=${p}`}
+                                    className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors text-sm font-medium ${currentPage === p ? 'bg-purple-600 border-purple-500 text-white' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'}`}
+                                >
+                                    {p}
+                                </Link>
+                            );
+                        })}
+                    </div>
+
+                    <Link
+                        href={`/dashboard/analysis/${params.id}/reviews?page=${Math.min(totalPages, currentPage + 1)}`}
+                        className={`px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-sm font-medium transition-colors ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed text-gray-600' : 'hover:bg-white/10 text-white'}`}
+                        aria-disabled={currentPage === totalPages}
+                    >
+                        Next
+                    </Link>
+                </div>
+            )}
         </div>
     );
 }
