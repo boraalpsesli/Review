@@ -223,7 +223,7 @@ async def get_analysis(
             summary=report.summary,
             complaints=report.complaints or [],
             praises=report.praises or [],
-            recommended_actions=[], # Add logic if/when we have this field
+            recommended_actions=report.recommended_actions or [],
             reviews_analyzed=report.reviews_analyzed,
             restaurant_name=report.restaurant.name if report.restaurant else "Unknown Restaurant",
             restaurant_rating=report.restaurant.rating if report.restaurant else None,

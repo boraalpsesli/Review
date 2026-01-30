@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Store } from "lucide-react";
 
 
@@ -19,18 +20,24 @@ type PlaceInfo = {
 
 
 
+type RecommendedAction = {
+    title: string;
+    description: string;
+};
+
 type AnalysisResult = {
     restaurant_name: string;
     sentiment_score: number;
     summary: string;
     complaints: string[];
     praises: string[];
-    recommended_actions: string[];
+    recommended_actions: RecommendedAction[];
     reviews_analyzed: number;
 };
 
 export default function AnalysisForm() {
     const { data: session } = useSession();
+    const router = useRouter();
     const [query, setQuery] = useState("");
     const [places, setPlaces] = useState<PlaceInfo[]>([]);
     const [selectedPlace, setSelectedPlace] = useState<PlaceInfo | null>(null);
@@ -116,9 +123,10 @@ export default function AnalysisForm() {
 
                     if (statusData.status === "SUCCESS") {
                         clearInterval(pollInterval);
-                        setResult(statusData.result);
                         setLoading(false);
                         setStatus("Complete!");
+                        // Redirect to the detail page (which uses the new design)
+                        router.push(`/dashboard/analysis/${statusData.result.id}`);
                     } else if (statusData.status === "FAILURE") {
                         clearInterval(pollInterval);
                         throw new Error(statusData.error || "Analysis failed");
@@ -315,84 +323,6 @@ export default function AnalysisForm() {
                 <div className="text-center py-8">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-purple-500 border-r-transparent"></div>
                     <p className="mt-4 text-zinc-400 font-medium">{status}</p>
-                </div>
-            )}
-
-            {/* Analysis Result */}
-            {result && (
-                <div className="bg-zinc-900/80 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl p-8 text-left animate-slide-up">
-                    <div className="flex justify-between items-start mb-6 border-b border-white/10 pb-4">
-                        <div>
-                            <h3 className="text-2xl font-bold text-white">{result.restaurant_name}</h3>
-                            <p className="text-zinc-400 text-sm">Based on {result.reviews_analyzed} recent reviews</p>
-                        </div>
-                        <div className="text-right">
-                            <div className={`text-3xl font-bold ${result.sentiment_score > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {(result.sentiment_score * 100).toFixed(0)}%
-                            </div>
-                            <div className="text-xs text-zinc-500 uppercase font-bold tracking-wider">Sentiment Score</div>
-                        </div>
-                    </div>
-
-                    <div className="mb-8">
-                        <h4 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-2">Executive Summary</h4>
-                        <p className="text-zinc-200 text-lg leading-relaxed">{result.summary}</p>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-8">
-                        <div className="bg-green-900/10 rounded-xl p-6 border border-green-500/20">
-                            <h4 className="flex items-center gap-2 text-green-400 font-bold mb-4">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>
-                                Success Factors
-                            </h4>
-                            <ul className="space-y-2">
-                                {result.praises.map((praise, i) => (
-                                    <li key={i} className="flex gap-2 text-green-200 text-sm">
-                                        <span className="text-green-500">•</span> {praise}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        <div className="bg-red-900/10 rounded-xl p-6 border border-red-500/20">
-                            <h4 className="flex items-center gap-2 text-red-400 font-bold mb-4">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412-.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" /></svg>
-                                Areas for Improvement
-                            </h4>
-                            <ul className="space-y-2">
-                                {result.complaints.map((complaint, i) => (
-                                    <li key={i} className="flex gap-2 text-red-200 text-sm">
-                                        <span className="text-red-500">•</span> {complaint}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-
-                    {result.recommended_actions && result.recommended_actions.length > 0 && (
-                        <div className="mt-8 bg-blue-900/10 rounded-xl p-6 border border-blue-500/20">
-                            <h4 className="flex items-center gap-2 text-blue-400 font-bold mb-4">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                Recommended Actions
-                            </h4>
-                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {result.recommended_actions.map((action, i) => (
-                                    <div key={i} className="flex gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/10 hover:border-blue-500/30 transition-colors">
-                                        <span className="text-blue-500 font-bold">{i + 1}.</span>
-                                        <p className="text-blue-100 text-sm leading-relaxed">{action}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    <div className="mt-8 text-center">
-                        <button
-                            onClick={handleReset}
-                            className="text-purple-400 hover:text-purple-300 font-medium cursor-pointer"
-                        >
-                            ← Analyze another restaurant
-                        </button>
-                    </div>
                 </div>
             )}
         </div>

@@ -16,6 +16,24 @@ csv.field_size_limit(sys.maxsize)
 
 logger = logging.getLogger(__name__)
 
+def normalize_text(text: str) -> str:
+    """Normalize text for consistent hashing (strip, lowercase, remove extra spaces)."""
+    if not text:
+        return ""
+    return " ".join(text.lower().split())
+
+def generate_review_signature(review: Dict[str, Any]) -> str:
+    """Generate a unique signature for a review based on its content."""
+    author = normalize_text(review.get('author', ''))
+    # Use only part of the text to avoid issues with "More..." expansions differing slightly
+    text_snippet = normalize_text(review.get('text', ''))[:50] 
+    rating = str(review.get('rating', 0))
+    date = normalize_text(review.get('date_text', ''))
+    
+    # Signature: author|rating|date|partial_text
+    return f"{author}|{rating}|{date}|{text_snippet}"
+
+
 GOSOM_URL = os.getenv("GOSOM_URL", "http://gosom-scraper:8080")
 
 
@@ -46,7 +64,7 @@ class GoogleMapsScraper:
             "lang": "en",
             "depth": 1,  # Only get the single best matching place
             "max_time": 600,
-            "fast_mode": False,
+            "fast_mode": False,  # Disable fast mode as it requires lat/lon
             "json": True,
             "email": False,
             "extra_reviews": True  # Fetch extended reviews (up to ~300)
@@ -83,24 +101,30 @@ class GoogleMapsScraper:
                                 reader = csv.DictReader(io.StringIO(csv_text))
                                 results = []
                                 for row in reader:
+                                    # Prioritize extended reviews. If we have them, ignore the basic 'reviews' to avoid duplicates.
                                     reviews_data = []
-                                    review_key = next((k for k in ['user_reviews', 'UserReviews', 'reviews'] if k in row), None)
-                                    if review_key and row[review_key]:
-                                        try:
-                                            parsed = json_lib.loads(row[review_key])
-                                            if isinstance(parsed, list):
-                                                reviews_data.extend(parsed)
-                                        except Exception:
-                                            pass
-
+                                    has_extended = False
+                                    
                                     ext_key = next((k for k in ['user_reviews_extended', 'UserReviewsExtended'] if k in row), None)
                                     if ext_key and row[ext_key]:
                                         try:
                                             parsed = json_lib.loads(row[ext_key])
-                                            if isinstance(parsed, list):
+                                            if isinstance(parsed, list) and len(parsed) > 0:
                                                 reviews_data.extend(parsed)
+                                                has_extended = True
                                         except Exception:
                                             pass
+
+                                    # Only look at basic reviews if we didn't get any extended ones
+                                    if not has_extended:
+                                        review_key = next((k for k in ['user_reviews', 'UserReviews', 'reviews'] if k in row), None)
+                                        if review_key and row[review_key]:
+                                            try:
+                                                parsed = json_lib.loads(row[review_key])
+                                                if isinstance(parsed, list):
+                                                    reviews_data.extend(parsed)
+                                            except Exception:
+                                                pass
 
                                     row['reviews'] = reviews_data
                                     results.append(row)
@@ -145,15 +169,43 @@ class GoogleMapsScraper:
                     raw_reviews = []
 
             reviews = []
+            reviews_map = {}
+            
             for r in raw_reviews:
-                reviews.append({
-                    'review_id': get_val(r, 'reviewId', 'googleMapsReviewId', 'id_review') or str(hash(get_val(r, 'reviewerName', 'Name', 'name') or 'unknown')),
-                    'text': get_val(r, 'text', 'caption', 'Text', 'Description') or '',
-                    'rating': float(get_val(r, 'stars', 'rating', 'Rating') or 0),
-                    'author': get_val(r, 'reviewerName', 'name', 'Name') or 'Anonymous',
-                    'date_text': get_val(r, 'publishedAtDate', 'relativePublishTimeDescription', 'date', 'When') or '',
-                    'profile_picture': get_val(r, 'reviewerPhotoUrl', 'ProfilePicture', 'profile_picture') or ''
-                })
+                # Extract fields first to generate signature
+                text = get_val(r, 'text', 'caption', 'Text', 'Description') or ''
+                rating = float(get_val(r, 'stars', 'rating', 'Rating') or 0)
+                author = get_val(r, 'reviewerName', 'name', 'Name') or 'Anonymous'
+                date_text = get_val(r, 'publishedAtDate', 'relativePublishTimeDescription', 'date', 'When') or ''
+                profile_picture = get_val(r, 'reviewerPhotoUrl', 'ProfilePicture', 'profile_picture') or ''
+                
+                # Original ID from source (still kept for reference)
+                original_id = get_val(r, 'reviewId', 'googleMapsReviewId', 'id_review')
+                
+                review_obj = {
+                    'text': text,
+                    'rating': rating,
+                    'author': author,
+                    'date_text': date_text,
+                    'profile_picture': profile_picture
+                }
+                
+                # Generate robust content-based signature
+                signature = generate_review_signature(review_obj)
+                
+                # If we have a real ID, use it as part of the object, else generate one
+                review_obj['review_id'] = original_id or str(hash(signature))
+
+                # Deduplicate based on signature
+                if signature not in reviews_map:
+                    reviews_map[signature] = review_obj
+                else:
+                    # If we already have this review, check if the new one has more data (e.g. longer text)
+                    existing = reviews_map[signature]
+                    if len(text) > len(existing['text']):
+                        reviews_map[signature] = review_obj
+            
+            reviews = list(reviews_map.values())
 
             recent_reviews = []
             cutoff = datetime.utcnow() - timedelta(days=30)  # Only reviews from last 30 days
