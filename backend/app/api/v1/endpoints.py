@@ -264,21 +264,16 @@ async def get_analysis_reviews(
         restaurant_url = report.restaurant.google_maps_url
         restaurant_name = report.restaurant.name
         
-        # 2. Query MongoDB for latest reviews
-        from app.core.database import get_mongo_collection
-        from pymongo import DESCENDING
+        # 2. Query Postgres for latest raw reviews
+        from app.models.review import RawReview
         
-        collection = get_mongo_collection("raw_reviews")
-        
-        # Find document matching the URL, sort by scraped_at desc to get latest
-        doc = await collection.find_one(
-            {"query": restaurant_url},
-            sort=[("scraped_at", DESCENDING)]
-        )
+        stmt = select(RawReview).where(RawReview.query == restaurant_url)
+        result = await db.execute(stmt)
+        doc = result.scalar_one_or_none()
         
         reviews_data = []
-        if doc and "reviews" in doc:
-            for r in doc["reviews"]:
+        if doc and doc.reviews:
+            for r in doc.reviews:
                 # Map raw review dict to schema
                 # Raw review structure depends on scraper but usually has text, rating, date
                 reviews_data.append(ReviewItem(

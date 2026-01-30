@@ -5,8 +5,8 @@ import Logo from "@/components/Logo";
 
 const navigation = [
     { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
-    { name: "History", href: "/dashboard", icon: History }, // Placeholder
-    { name: "Settings", href: "/dashboard", icon: Settings }, // Placeholder
+    { name: "History", href: "/dashboard/history", icon: History },
+    { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
 export default function Sidebar() {

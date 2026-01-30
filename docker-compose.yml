@@ -17,20 +17,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # MongoDB Database
-  mongodb:
-    image: mongo:7.0
-    container_name: restaurant_mongodb
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    healthcheck:
-      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Redis for Celery
   redis:
     image: redis:7-alpine
@@ -58,20 +44,21 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=restaurant_saas
-      - MONGO_URL=mongodb://mongodb:27017
+
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AUTH_GOOGLE_ID=${AUTH_GOOGLE_ID}
+      - AUTH_GOOGLE_SECRET=${AUTH_GOOGLE_SECRET}
       - GOSOM_URL=http://gosom-scraper:8080
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
-      mongodb:
-        condition: service_healthy
+
       redis:
         condition: service_healthy
       gosom-scraper:
@@ -92,7 +79,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=restaurant_saas
-      - MONGO_URL=mongodb://mongodb:27017
+
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -101,8 +88,6 @@ services:
       - GOSOM_URL=http://gosom-scraper:8080
     depends_on:
       postgres:
-        condition: service_healthy
-      mongodb:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -142,5 +127,5 @@ services:
 
 volumes:
   postgres_data:
-  mongodb_data:
+
   redis_data:

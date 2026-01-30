@@ -25,10 +25,6 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_DB: str = "restaurant_saas"
     
-    # Database Settings - MongoDB
-    MONGO_URL: str = "mongodb://localhost:27017"
-    MONGO_DB: str = "restaurant_reviews"
-    
     # Redis Settings
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
@@ -44,6 +40,10 @@ class Settings(BaseSettings):
     # Outscraper Settings
     OUTSCRAPER_API_KEY: Optional[str] = None
     
+    # Google OAuth
+    AUTH_GOOGLE_ID: Optional[str] = None
+    AUTH_GOOGLE_SECRET: Optional[str] = None
+
     # Playwright Settings
     PLAYWRIGHT_HEADLESS: bool = True
     PLAYWRIGHT_TIMEOUT: int = 30000  # 30 seconds
@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     REVIEW_DAYS_LIMIT: int = 30  # Last 30 days
     MAX_REVIEWS_TO_SCRAPE: int = 1000  # Increased to capture all reviews within 30 days
     
+    @property
+    def API_V1_STR(self) -> str:
+        return self.API_V1_PREFIX
+
     @property
     def postgres_url(self) -> str:
         """Generate PostgreSQL connection URL"""

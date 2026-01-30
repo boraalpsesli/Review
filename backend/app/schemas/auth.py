@@ -23,6 +23,8 @@ class UserResponse(UserBase):
     id: int
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    profile_picture: Optional[str] = None
+    google_account_connected: bool = False
     is_active: bool
 
     class Config:

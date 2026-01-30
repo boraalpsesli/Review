@@ -82,12 +82,14 @@ export const config = {
         async jwt({ token, user }) {
             if (user) {
                 token.id = user.id
+                token.accessToken = user.accessToken
             }
             return token
         },
         async session({ session, token }) {
             if (session.user) {
                 session.user.id = token.id as string
+                session.user.accessToken = token.accessToken as string
             }
             return session
         }

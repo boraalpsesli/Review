@@ -3,7 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.endpoints import router as api_router
 from app.api.v1.places import router as places_router
 from app.api.v1.auth import router as auth_router
-from app.core.database import Base, engine, MongoDB, RedisClient
+from app.api.v1.users import router as users_router
+from app.core.database import Base, engine, RedisClient
+from app.models.review import RawReview # Register model
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +28,7 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(places_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1/auth")
+app.include_router(users_router, prefix="/api/v1/users")
 
 
 @app.on_event("startup")
@@ -33,7 +36,6 @@ async def startup():
     logger.info("Starting up...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await MongoDB.connect()
     await RedisClient.connect()
     logger.info("Database connections established")
 
@@ -41,7 +43,6 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     logger.info("Shutting down...")
-    await MongoDB.close()
     await RedisClient.close()
 
 

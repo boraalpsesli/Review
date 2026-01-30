@@ -4,7 +4,6 @@ from typing import Dict
 from app.worker.celery_app import celery_app
 from app.services.scraper import GoogleMapsScraper
 from app.services.ai_analyzer import GeminiAnalyzer
-from app.core.database import MongoDB
 from app.models.restaurant import Restaurant, AnalysisReport
 from sqlalchemy import select
 from datetime import datetime
@@ -36,8 +35,8 @@ async def _async_analyze_restaurant(query: str, task_id: str, user_id: str = Non
     if not reviews:
         raise ValueError(f"No reviews found for '{query}'")
     
-    logger.info(f"Step 2: Storing {len(reviews)} raw reviews in MongoDB")
-    await _store_raw_reviews_mongodb(query, scrape_result)
+    logger.info(f"Step 2: Storing {len(reviews)} raw reviews in PostgreSQL")
+    await _store_raw_reviews_postgres(query, scrape_result)
     
     logger.info("Step 3: Analyzing reviews with Gemini AI")
     analyzer = GeminiAnalyzer()
@@ -46,12 +45,13 @@ async def _async_analyze_restaurant(query: str, task_id: str, user_id: str = Non
     analysis_result = await analyzer.analyze_reviews(ai_reviews, restaurant_info['name'])
     
     logger.info("Step 4: Storing analysis results in PostgreSQL")
-    restaurant_id = await _store_analysis_postgres(
+    analysis_id = await _store_analysis_postgres(
         query, restaurant_info, analysis_result, task_id, user_id
     )
     
     return {
-        "restaurant_id": restaurant_id,
+        "id": analysis_id,
+        "restaurant_id": restaurant_info.get('id'), # This might be None if not yet saved, but restaurant_id is mostly for internal use
         "restaurant_name": restaurant_info['name'],
         "restaurant_rating": restaurant_info.get('rating'),
         "sentiment_score": analysis_result['sentiment_score'],
@@ -64,23 +64,39 @@ async def _async_analyze_restaurant(query: str, task_id: str, user_id: str = Non
     }
 
 
-async def _store_raw_reviews_mongodb(query: str, scrape_result: Dict):
-    MongoDB.client = None
-    await MongoDB.connect()
+async def _store_raw_reviews_postgres(query: str, scrape_result: Dict):
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+    from app.core.config import settings
+    from app.models.review import RawReview
     
-    collection = MongoDB.get_collection("raw_reviews")
+    engine = create_async_engine(settings.postgres_url, echo=True, future=True)
+    session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
-    document = {
-        "query": query,
-        "restaurant_info": scrape_result['restaurant_info'],
-        "reviews": scrape_result['reviews'],
-        "total_reviews_collected": scrape_result['total_reviews_collected'],
-        "scraped_at": scrape_result['scraped_at'],
-        "stored_at": datetime.utcnow().isoformat()
-    }
-    
-    await collection.insert_one(document)
-    logger.info(f"Stored raw data in MongoDB")
+    async with session_maker() as session:
+        # Check if already exists for this query
+        result = await session.execute(
+            select(RawReview).where(RawReview.query == query)
+        )
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            # Update existing
+            existing.restaurant_info = scrape_result['restaurant_info']
+            existing.reviews = scrape_result['reviews']
+            existing.total_reviews_collected = scrape_result['total_reviews_collected']
+            existing.scraped_at = datetime.fromisoformat(scrape_result['scraped_at']) if isinstance(scrape_result['scraped_at'], str) else scrape_result['scraped_at']
+        else:
+            # Create new
+            new_raw = RawReview(
+                query=query,
+                restaurant_info=scrape_result['restaurant_info'],
+                reviews=scrape_result['reviews'],
+                total_reviews_collected=scrape_result['total_reviews_collected']
+            )
+            session.add(new_raw)
+            
+        await session.commit()
+    logger.info(f"Stored raw data in PostgreSQL")
 
 
 async def _store_analysis_postgres(
@@ -138,6 +154,7 @@ async def _store_analysis_postgres(
         
         session.add(analysis_report)
         await session.commit()
+        await session.refresh(analysis_report)
         
-        logger.info(f"Stored analysis in PostgreSQL for restaurant_id={restaurant.id}")
-        return restaurant.id
+        logger.info(f"Stored analysis in PostgreSQL for restaurant_id={restaurant.id}, report_id={analysis_report.id}")
+        return analysis_report.id

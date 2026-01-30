@@ -1,6 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from motor.motor_asyncio import AsyncIOMotorClient
 from typing import AsyncGenerator
 import redis.asyncio as redis
 from app.core.config import settings
@@ -26,30 +25,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-class MongoDB:
-    client: AsyncIOMotorClient = None
-    
-    @classmethod
-    async def connect(cls):
-        cls.client = AsyncIOMotorClient(settings.MONGO_URL)
-        
-    @classmethod
-    async def close(cls):
-        if cls.client:
-            cls.client.close()
-    
-    @classmethod
-    def get_database(cls):
-        return cls.client[settings.MONGO_DB]
-    
-    @classmethod
-    def get_collection(cls, collection_name: str):
-        db = cls.get_database()
-        return db[collection_name]
 
-
-def get_mongo_collection(collection_name: str):
-    return MongoDB.get_collection(collection_name)
 
 
 class RedisClient:
